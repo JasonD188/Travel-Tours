@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Face Registration</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center p-6">
+
+<h1 class="text-4xl font-bold mb-6">
+Face Registration
+</h1>
+
+<div class="flex flex-row gap-8 items-start justify-center flex-wrap">
+
+<div class="flex flex-col items-center">
+
+<video
+id="video"
+autoplay
+playsinline
+class="w-96 rounded-xl border border-slate-700">
+</video>
+
+<canvas id="canvas" class="hidden"></canvas>
+
+<div class="mt-5 flex flex-col gap-3 w-96">
+
+<input
+id="name"
+type="text"
+placeholder="Enter Name"
+class="px-4 py-2 rounded text-black">
+
+<input
+id="contact"
+type="text"
+placeholder="Enter Contact Number"
+class="px-4 py-2 rounded text-black">
+
+<input
+id="address"
+type="text"
+placeholder="Enter Address"
+class="px-4 py-2 rounded text-black">
+
+<label class="text-sm text-slate-300">
+Date Hired
+</label>
+
+<input
+id="dateHired"
+type="date"
+class="px-4 py-2 rounded text-black">
+
+<button
+onclick="registerFace()"
+class="bg-green-600 px-4 py-2 rounded">
+Save Picture
+</button>
+
+</div>
+
+</div>
+
+<div id="qrContainer" class="hidden flex flex-col items-center bg-slate-800 border border-slate-700 rounded-xl p-6 w-64">
+    <p class="mb-3 text-lg font-semibold">QR Code</p>
+    <img id="qrImage" class="w-48 h-48 bg-white p-2 rounded-xl" />
+    <a
+    id="qrDownload"
+    download="qrcode.png"
+    class="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white text-center w-full">
+    Download QR Code
+    </a>
+
+    <div
+    id="result"
+    class="mt-6 text-xl w-full">
+    Waiting...
+    </div>
+</div>
+
+</div>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+navigator.mediaDevices.getUserMedia({
+    video:true
+})
+.then(stream=>{
+    video.srcObject = stream;
+});
+
+function capture(){
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    return canvas.toDataURL("image/jpeg");
+}
+
+async function registerFace(){
+
+    const name =
+    document.getElementById("name").value.trim();
+
+    const contact =
+    document.getElementById("contact").value.trim();
+
+    const address =
+    document.getElementById("address").value.trim();
+
+    const dateHired =
+    document.getElementById("dateHired").value;
+
+    if(!name){
+        alert("Enter name");
+        return;
+    }
+
+    if(!contact){
+        alert("Enter contact number");
+        return;
+    }
+
+    if(!address){
+        alert("Enter address");
+        return;
+    }
+
+    if(!dateHired){
+        alert("Select date hired");
+        return;
+    }
+
+    const image = capture();
+
+    const res = await fetch(
+        "/registerface/register",
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify({   
+                name,
+                contact,
+                address,
+                dateHired,
+                image
+            })
+        }
+    );
+
+    const data = await res.json();
+
+    const existingBadge = data.is_existing
+        ? `<span class="inline-block mt-1 px-2 py-1 text-xs font-semibold bg-yellow-500 text-black rounded">Existing Employee</span><br>`
+        : "";
+
+    document.getElementById("result").innerHTML = `
+        ${data.message}<br>
+        ${existingBadge}
+        <span class="text-base text-slate-300">
+            Employee ID: ${data.employee_id} <br>
+            Contact: ${data.contact} <br>
+            Address: ${data.address} <br>
+            Date Hired: ${data.date_hired}
+        </span>
+    `;
+
+    if(data.qr_code){
+        const qrContainer = document.getElementById("qrContainer");
+        const qrImage = document.getElementById("qrImage");
+        const qrDownload = document.getElementById("qrDownload");
+
+        qrImage.src = data.qr_code;
+        qrDownload.href = data.qr_code;
+        qrDownload.download = `${name}_qrcode.png`;
+
+        qrContainer.classList.remove("hidden");
+    }
+}
+
+</script>
+
+</body>
+</html>

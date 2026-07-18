@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Travel & Tours — Workforce Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#eef7ec',
+            100: '#d7edd1',
+            500: '#5a9c3f',
+            600: '#47812f',
+            700: '#356123',
+            900: '#0f1a0c',
+          },
+          ink: {
+            900: '#14171a',
+            800: '#1c2023',
+            700: '#262b2f',
+          },
+          gold: {
+            400: '#f4b942',
+            500: '#e8a52c',
+            600: '#c98a1c',
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- QR decode (camera scanning) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- QR badge generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Face recognition (in-browser, no server ML needed) -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  html, body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #3f4b45; }
+
+  #sidebar-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+  #sidebar-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+  .scan-frame { position: relative; overflow: hidden; background: #0b0f0d; }
+  .scan-frame video, .scan-frame canvas { width: 100%; height: 100%; object-fit: cover; }
+  .scan-reticle { position: absolute; inset: 12%; border: 2px solid rgba(244,185,66,.85); border-radius: 16px; pointer-events: none; }
+  .scan-sweep { position: absolute; left: 12%; right: 12%; height: 2px; background: linear-gradient(90deg, transparent, #f4b942, transparent); animation: sweep 2.2s ease-in-out infinite; }
+  @keyframes sweep { 0%,100% { top: 12%; } 50% { top: 86%; } }
+  .fade-in { animation: fadeIn .25s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+  .toast-enter { animation: toastIn .3s ease-out; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px);} to { opacity: 1; transform: translateX(0);} }
+
+  #sidebar { transition: transform .28s ease; width: 17rem; }
+  @media (min-width: 768px) {
+    #sidebar { width: 16rem; }
+  }
+  #main-content { transition: margin-left .28s ease; }
+  #sidebar-overlay { transition: opacity .25s ease; }
+
+  body { background:#f1f5f4; color:#1c2023; transition: background-color .2s ease, color .2s ease; overflow-x: hidden; }
+  .dark body { background:#101312; color:#e7ece9; }
+
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-ink-900 dark:text-slate-100">
+
+<div class="flex min-h-screen">
+
+  <div id="sidebar-overlay" class="hidden opacity-0 fixed inset-0 bg-black/50 z-30 md:hidden"></div>
+
+   <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 shrink-0 bg-brand-900 text-white flex flex-col justify-between dark:bg-ink-800 dark:border-r dark:border-white/5">
+      <div id="sidebar-scroll" class="overflow-y-auto flex-1 min-h-0">
+      <div class="flex items-center gap-3 px-5 py-6">
+          <div class="w-9 h-9 rounded-full ring-2 ring-white/80 overflow-hidden shrink-0">
+          <img src="{{ url_for('static', filename='logo.jpg') }}"
+      alt="Logo"
+      class="w-full h-full object-cover">
+          </div>
+          <div class="leading-tight sidebar-brand-text">
+            <p class="font-extrabold tracking-tight">A.R</p>
+            <p class="text-[10px] tracking-widest text-gold-400/90 whitespace-nowrap">TRAVEL &amp; TOURS</p>
+          </div>
+        </div>
+
+        <nav class="mt-2 px-3 space-y-1" id="sidebar-nav">
+          <button data-panel="dashboard" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-brand-600 font-semibold text-sm" title="Dashboard">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1h4a1 1 0 001-1V10"/></svg>
+            <span class="sidebar-label whitespace-nowrap">Dashboard</span>
+          </button>
+
+          <p class="px-3 pt-4 pb-1 text-[11px] font-bold tracking-widest text-gold-400/70 sidebar-label whitespace-nowrap">WORKFORCE</p>
+
+          <button data-panel="time-attendance" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Time and Attendance System">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>
+            <span class="text-left sidebar-label">Time and Attendance System</span>
+          </button>
+
+          <button data-panel="shift-schedule" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Shift and Schedule Management">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path stroke-linecap="round" d="M3 9h18M8 3v3M16 3v3"/></svg>
+            <span class="text-left sidebar-label">Shift and Schedule Management</span>
+          </button>
+
+          <button data-panel="timesheet" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Timesheet Management">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3h6l1 2h2a1 1 0 011 1v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h2l1-2z"/><path stroke-linecap="round" d="M9 11h6M9 15h6"/></svg>
+            <span class="sidebar-label">Timesheet Management</span>
+          </button>
+
+          <button data-panel="leave-management" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Leave Management">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path stroke-linecap="round" d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            <span class="sidebar-label">Leave Management</span>
+          </button>
+
+          <button data-panel="analytics" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Workforce Analytics">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19h16M8 19V9m4 10V5m4 14v-6"/></svg>
+            <span class="text-left sidebar-label">Workforce Analytics </span>
+          </button>
+
+          <p class="px-3 pt-4 pb-1 text-[11px] font-bold tracking-widest text-gold-400/70 sidebar-label whitespace-nowrap">ATTENDANCE OPS</p>
+
+          <button data-panel="scanner" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Scanner">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M20 7V5a1 1 0 00-1-1h-2M20 17v2a1 1 0 01-1 1h-2M4 12h16"/></svg>
+            <span class="text-left sidebar-label whitespace-nowrap">Scanner </span>
+          </button>
+
+          <button data-panel="register-employee" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-brand-50/90 hover:bg-white/10 transition" title="Register Employee">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.5 19c.6-3 3-5 5.5-5s4.9 2 5.5 5M17 8h4M19 6v4"/></svg>
+            <span class="text-left sidebar-label whitespace-nowrap">Register Employee </span>
+          </button>
+        </nav>
+
+      
+        <div class="mt-4 px-2">
+          <img src="{{ url_for('static', filename='logo-removebg-preview.png') }}" style="background:none"class="w-full object-contain">
+        </div>
+      </div>
+
+      <div class="relative px-5 pb-5 pt-8 bg-brand-700/40 overflow-hidden sidebar-label dark:bg-black/20 shrink-0">
+        <p class="text-sm font-semibold leading-snug">Empowering People.<br>Delivering Journeys.</p>
+        <svg class="absolute right-2 bottom-2 w-20 h-20 opacity-80" viewBox="0 0 64 64" fill="none">
+          <rect x="30" y="30" width="14" height="22" rx="2" fill="#f4b942" fill-opacity="0.9"/>
+          <rect x="10" y="38" width="12" height="16" rx="2" fill="#f4b942" fill-opacity="0.7"/>
+          <circle cx="36" cy="52" r="2" fill="#0f1a0c"/>
+          <circle cx="16" cy="54" r="2" fill="#0f1a0c"/>
+        </svg>
+      </div>
+    </aside>
+
+  <div id="main-content" class="flex-1 flex flex-col min-w-0 md:ml-64">
+
+    <header class="sticky top-0 z-20 bg-white border-b border-slate-200 dark:bg-ink-800 dark:border-white/5">
+      <div class="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 lg:px-8 py-3 sm:py-3.5">
+        <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <button id="sidebar-toggle-topbar" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition shrink-0 md:hidden" title="Toggle menu">
+            <svg class="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="relative flex-1 min-w-0 max-w-md">
+            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
+            <input id="search-input" type="text" placeholder="Search anything..."
+              class="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1 sm:gap-3 lg:gap-5 shrink-0">
+          <button id="theme-toggle" class="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition" title="Toggle dark mode">
+            <svg id="icon-sun" class="w-5 h-5 text-gold-500 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+            <svg id="icon-moon" class="w-5 h-5 text-brand-600 dark:text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+
+          <div class="relative">
+            <button id="bell-btn" class="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition">
+              <svg class="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              <span id="bell-badge" class="absolute -top-0.5 -right-0.5 bg-gold-500 text-brand-900 text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center font-bold">3</span>
+            </button>
+            <div id="bell-dropdown" class="hidden absolute right-0 mt-2 w-[90vw] max-w-80 sm:w-80 bg-white dark:bg-ink-700 rounded-xl shadow-xl border border-slate-200 dark:border-white/10 fade-in">
+              <div class="px-4 py-3 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+                <p class="font-semibold text-sm">Notifications</p>
+                <button id="mark-all-read" class="text-xs text-brand-600 dark:text-gold-400 font-medium hover:underline">Mark all read</button>
+              </div>
+              <ul id="notif-list" class="max-h-64 overflow-y-auto scrollbar-thin divide-y divide-slate-100 dark:divide-white/10"></ul>
+            </div>
+          </div>
+
+          <div class="relative">
+            <button id="profile-btn" class="flex items-center gap-2.5 group">
+              <div class="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-700/40 flex items-center justify-center overflow-hidden ring-2 ring-white dark:ring-ink-700 shadow shrink-0">
+                <svg class="w-6 h-6 text-brand-600 dark:text-gold-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></svg>
+              </div>
+              <div class="text-left leading-tight hidden lg:block">
+                <p class="text-sm font-semibold"></p>
+                <p class="text-xs text-slate-400">Administrator</p>
+              </div>
+              <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-52 bg-white dark:bg-ink-700 rounded-xl shadow-xl border border-slate-200 dark:border-white/10 py-1.5 fade-in">
+              <button data-action="profile" class="menu-btn w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5">My Profile</button>
+              <button data-action="settings" class="menu-btn w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5">Account Settings</button>
+              <button data-action="help" class="menu-btn w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-white/5">Help &amp; Support</button>
+              <div class="my-1 border-t border-slate-100 dark:border-white/10"></div>
+              <button data-action="logout" class="menu-btn w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10">Log Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="p-3 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 min-w-0">
+
+      <section id="panel-dashboard" class="panel space-y-4 sm:space-y-6">
+
+        <div class="relative rounded-2xl overflow-hidden text-white">
+          <img src="{{ url_for('static', filename='logo.jpg') }}"
+               class="absolute inset-0 w-full h-full object-cover" />
+          <div class="absolute inset-0 bg-gradient-to-r from-brand-900/85 via-brand-700/55 to-transparent"></div>
+          <div class="relative z-10 px-5 sm:px-8 py-7 sm:py-9 max-w-xl">
+            <h1 class="text-2xl sm:text-3xl font-extrabold flex items-center gap-2">Welcome back, A.R.Travel&Tours! <span></span></h1>
+            <p class="mt-2 text-sm sm:text-base text-brand-50/90">Manage your workforce, schedules and operations seamlessly across all travel destinations.</p>
+            <button id="btn-todays-overview" class="mt-5 inline-flex items-center gap-2 bg-gold-400 text-brand-900 font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-gold-500 transition shadow">
+              View Today's Overview
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100">How the numbers are computed</h3>
+            <span class="text-[10px] font-bold bg-gold-400 text-brand-900 rounded px-1.5 py-0.5">AI-Based Analytics</span>
+          </div>
+          <button data-goto="analytics" class="goto-btn text-sm font-semibold text-brand-600 dark:text-gold-400 hover:underline">Full breakdown →</button>
+        </div>
+        <div id="analytics-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        <div id="dashboard-analytics-graph" class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm p-5"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+
+          <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4">Today's Overview</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-brand-50 dark:bg-brand-500/10 rounded-xl p-3.5">
+                <svg class="w-5 h-5 text-brand-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-1a4 4 0 00-3-3.87M9 20H4v-1a4 4 0 013-3.87m5-5.13a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 10-8 0"/></svg>
+                <p id="stat-total" class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">0</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Total Employees</p>
+              </div>
+              <div class="bg-emerald-50 dark:bg-emerald-500/10 rounded-xl p-3.5">
+                <svg class="w-5 h-5 text-emerald-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                <p id="stat-checked" class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">0</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Checked In</p>
+              </div>
+              <div class="bg-gold-400/10 dark:bg-gold-400/10 rounded-xl p-3.5">
+                <svg class="w-5 h-5 text-gold-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>
+                <p id="stat-leave" class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">0</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">On Leave</p>
+              </div>
+              <div class="bg-violet-50 dark:bg-violet-500/10 rounded-xl p-3.5">
+                <svg class="w-5 h-5 text-violet-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path stroke-linecap="round" d="M3 9h18"/></svg>
+                <p id="stat-duty" class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">0</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">On Duty</p>
+              </div>
+            </div>
+
+            <h4 class="font-semibold text-sm text-slate-700 dark:text-slate-300 mt-5 mb-2">Attendance Trend (This Week)</h4>
+            <svg id="trend-chart" viewBox="0 0 320 140" class="w-full h-32"></svg>
+          </div>
+
+          <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-bold text-slate-800 dark:text-slate-100">Upcoming Schedules</h3>
+              <button data-goto="shift-schedule" class="goto-btn text-sm font-semibold text-brand-600 dark:text-gold-400 hover:underline">View All</button>
+            </div>
+            <ul class="space-y-3" id="schedule-list"></ul>
+          </div>
+
+          <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-bold text-slate-800 dark:text-slate-100">Leave Requests</h3>
+              <button data-goto="leave-management" class="goto-btn text-sm font-semibold text-brand-600 dark:text-gold-400 hover:underline">View All</button>
+            </div>
+            <ul class="space-y-3" id="leave-list">
+              <li id="leave-list-empty" class="text-sm text-slate-400 text-center py-6">No leave requests.</li>
+            </ul>
+            <button id="btn-manage-leaves" class="mt-4 text-sm font-semibold text-brand-600 dark:text-gold-400 hover:underline inline-flex items-center gap-1">
+              Manage Leave Requests
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl px-5 sm:px-6 py-4 flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between border border-slate-100 shadow-sm">
+          <p class="text-sm text-slate-500 dark:text-slate-400 italic flex items-center gap-2">
+            <svg class="w-4 h-4 text-brand-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>
+            "Great journeys start with great teams. Let's make every trip unforgettable!"
+          </p>
+          <svg class="w-5 h-5 text-gold-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 3L3 10.5l7 2.5m11-10L13.5 21l-2.5-8"/></svg>
+        </div>
+      </section>
+
+      <section id="panel-time-attendance" class="panel hidden"></section>
+      <section id="panel-shift-schedule" class="panel hidden"></section>
+      <section id="panel-timesheet" class="panel hidden"></section>
+      <section id="panel-leave-management" class="panel hidden"></section>
+      <section id="panel-analytics" class="panel hidden"></section>
+
+      <!-- ============ SCANNER PANEL ============ -->
+      <section id="panel-scanner" class="panel hidden">
+        <div class="flex flex-wrap items-center gap-4 mb-6">
+          <div class="w-12 h-12 rounded-xl bg-ink-900 text-white flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M20 7V5a1 1 0 00-1-1h-2M20 17v2a1 1 0 01-1 1h-2M4 12h16"/></svg>
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-lg sm:text-xl font-extrabold text-slate-800 dark:text-slate-100">Scanner</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Scan a QR code, then verify with Face Recognition. Results appear on the side.</p>
+          </div>
+          <button data-panel="dashboard" class="nav-item sm:ml-auto text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-white/10 px-4 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/20 transition">← Back to Dashboard</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- LEFT: active scanner stage -->
+          <div class="lg:col-span-2 space-y-4">
+            <div id="qr-scanner-step">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                <h3 class="font-bold text-slate-800 dark:text-slate-100">QR Code Scanner</h3>
+              </div>
+              <div id="qr-scanner-container" class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-h-[420px]">
+                <iframe id="qr-scanner-frame" src="/qrcodescanner" title="QR Code Scanner" class="w-full h-[420px] border-0"></iframe>
+              </div>
+            </div>
+
+            <div id="face-scanner-step" class="hidden">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full bg-gold-500 text-brand-900 text-xs font-bold flex items-center justify-center shrink-0">2</span>
+                  <h3 class="font-bold text-slate-800 dark:text-slate-100">Face Recognition <span class="font-normal text-slate-400">(verification)</span></h3>
+                </div>
+                <button id="scanner-back-to-qr" class="text-xs font-semibold text-brand-600 dark:text-gold-400 hover:underline">← Scan a different QR code</button>
+              </div>
+              <div id="face-scanner-container" class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-h-[420px]">
+                <iframe id="face-scanner-frame" src="about:blank" data-src="/deepfacerecog" title="Face Recognition Scanner" class="w-full h-[420px] border-0"></iframe>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: results sidebar -->
+          <aside class="lg:col-span-1">
+            <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm p-4 lg:sticky lg:top-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm">Scan Results</h3>
+                <button id="scan-results-clear" class="text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Clear</button>
+              </div>
+              <ul id="scan-results-list" class="space-y-2 max-h-[560px] overflow-y-auto scrollbar-thin">
+                <li id="scan-results-empty" class="text-xs text-slate-400 text-center py-8">No scans yet. Point a QR code at the camera to begin.</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Scan-again popup (after Face Recognition finishes) -->
+      <div id="scan-again-overlay" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-ink-700 rounded-2xl shadow-xl w-full max-w-sm fade-in">
+          <div class="px-6 py-5 text-center">
+            <div class="w-12 h-12 mx-auto rounded-full bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center mb-3">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <h3 class="font-bold text-slate-800 dark:text-slate-100">Verification complete</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">The result was added to the sidebar. Ready to scan a new QR code?</p>
+          </div>
+          <div class="flex justify-end gap-2 px-6 pb-5">
+            <button id="scan-again-close" class="text-sm font-semibold text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition">Close</button>
+            <button id="scan-again-confirm" class="text-sm font-semibold text-white bg-brand-600 px-4 py-2 rounded-lg hover:bg-brand-700 transition">Scan another QR</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ REGISTER EMPLOYEE PANEL ============ -->
+      <section id="panel-register-employee" class="panel hidden">
+        <div class="flex flex-wrap items-center gap-4 mb-6">
+          <div class="w-12 h-12 rounded-xl bg-brand-500 text-white flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.5 19c.6-3 3-5 5.5-5s4.9 2 5.5 5M17 8h4M19 6v4"/></svg>
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-lg sm:text-xl font-extrabold text-slate-800 dark:text-slate-100">Register Employee</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Enroll a new employee with a QR badge and a face profile.</p>
+          </div>
+          <button data-panel="dashboard" class="nav-item sm:ml-auto text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-white/10 px-4 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/20 transition">← Back to Dashboard</button>
+        </div>
+
+        <!-- Direktang naka-render ang templates/register.html mo dito via iframe,
+             kagaya ng ginawa sa Scanner panel. Container id nananatiling
+             register-employee-container para hindi masira ang ibang script. -->
+        <div id="register-employee-container" class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-h-[420px]">
+          <iframe id="register-employee-frame" src="about:blank" data-src="/registerface" title="Register Employee" class="w-full h-[560px] border-0"></iframe>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Schedule Employee Modal -->
+<div id="schedule-modal-overlay" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-ink-700 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin fade-in">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-white/10">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">Schedule Employee</h3>
+      <button id="schedule-modal-close" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl leading-none">&times;</button>
+    </div>
+    <form id="schedule-form" class="px-6 py-5 space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Employee</label>
+        <select id="schedule-employee-select" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"></select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Shift</label>
+        <select id="schedule-shift-select" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"></select>
+      </div>
+      <div id="new-shift-fields" class="space-y-3 hidden bg-slate-50 dark:bg-white/5 rounded-lg p-3">
+        <div>
+        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Select Employee for shifting</label>
+        <select id="schedule-employee-select" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"></select>
+      </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Date</label>
+            <input id="new-shift-date" type="text" placeholder="e.g. May 15" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Time</label>
+            <input id="new-shift-time" type="text" placeholder="e.g. 10AM - 6PM" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+        <button type="button" id="schedule-cancel-btn" class="text-sm font-semibold text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition">Cancel</button>
+        <button type="submit" class="text-sm font-semibold text-brand-900 bg-gold-400 px-4 py-2 rounded-lg hover:bg-gold-500 transition">Confirm Schedule</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Leave Request Modal -->
+<div id="leave-modal-overlay" class="hidden fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-ink-700 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin fade-in">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-white/10">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">New Leave Request</h3>
+      <button id="leave-modal-close" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl leading-none">&times;</button>
+    </div>
+    <form id="leave-form" class="px-6 py-5 space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Employee name</label>
+        <input id="leave-name" type="text" placeholder="e.g. Maria Santos" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400/40" />
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Dates</label>
+        <input id="leave-dates" type="text" placeholder="e.g. May 20 - May 22" class="w-full border border-slate-200 dark:border-white/10 dark:bg-ink-800 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400/40" />
+      </div>
+      <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+        <button type="button" id="leave-cancel-btn" class="text-sm font-semibold text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition">Cancel</button>
+        <button type="submit" class="text-sm font-semibold text-brand-900 bg-gold-400 px-4 py-2 rounded-lg hover:bg-gold-500 transition">Submit Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container" class="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-50 space-y-2"></div>
+
+<script>
+const subPanels = {
+  'time-attendance': {
+    title: 'Time and Attendance System',
+    subtitle: 'Track employee check-ins, outs and attendance.',
+    color: 'brand',
+    icon: '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>',
+    stats: [['Checked In Today','0'], ['Late Arrivals','0'], ['Absent','0'], ['Avg. Hours','—']],
+    table: { headers: ['Employee','Check In','Check Out','Status'], rows: [] }
+  },
+  'shift-schedule': {
+    title: 'Shift and Schedule Management',
+    subtitle: 'Create, manage and assign shifts with ease.',
+    color: 'emerald',
+    icon: '<rect x="3" y="4" width="18" height="17" rx="2"/><path stroke-linecap="round" d="M3 9h18M8 3v3M16 3v3"/>',
+    stats: [['Active Shifts','0'], ['Employees Scheduled','0'], ['Open Slots','—'], ['Shift Swaps','0']],
+    isScheduleTable: true,
+  },
+  'timesheet': {
+    title: 'Timesheet Management',
+    subtitle: 'Review, approve and manage employee timesheets.',
+    color: 'violet',
+    icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 3h6l1 2h2a1 1 0 011 1v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h2l1-2z"/><path stroke-linecap="round" d="M9 11h6M9 15h6"/>',
+    stats: [['Pending Approval','0'], ['Approved This Week','0'], ['Rejected','0'], ['Total Hours Logged','0h']],
+    table: { headers: ['Employee','Week Of','Hours','Status'], rows: [] }
+  },
+  'leave-management': {
+    title: 'Leave Management',
+    subtitle: 'Handle leave requests and balances efficiently.',
+    color: 'gold',
+    icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path stroke-linecap="round" d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+    stats: [['Pending Requests','0'], ['Approved','0'], ['Declined','0'], ['On Leave Today','0']],
+    isLeaveTable: true,
+  },
+  'analytics': {
+    title: 'Workforce Analytics',
+    subtitle: 'Every metric below is computed live from scan, schedule and leave records — formulas included.',
+    color: 'ink',
+    icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 19h16M8 19V9m4 10V5m4 14v-6"/>',
+    isAnalyticsChart: true,
+  }
+};
+
+const colorMap = {
+  brand: {bg:'bg-brand-50 dark:bg-brand-500/10', text:'text-brand-600 dark:text-brand-400', solid:'bg-brand-500'},
+  emerald: {bg:'bg-emerald-50 dark:bg-emerald-500/10', text:'text-emerald-600 dark:text-emerald-400', solid:'bg-emerald-500'},
+  violet: {bg:'bg-violet-50 dark:bg-violet-500/10', text:'text-violet-600 dark:text-violet-400', solid:'bg-violet-500'},
+  gold: {bg:'bg-gold-400/10', text:'text-gold-600 dark:text-gold-400', solid:'bg-gold-500'},
+  ink: {bg:'bg-slate-100 dark:bg-white/10', text:'text-slate-700 dark:text-slate-200', solid:'bg-ink-900'},
+};
+
+let employeeRoster = [];
+let scheduleData = [];
+let leaveData = [];
+let notifications = [];
+
+async function apiGet(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Request failed: ' + url);
+  return res.json();
+}
+async function apiPost(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed: ' + url);
+  return data;
+}
+
+async function refreshStats() {
+  try {
+    const stats = await apiGet('/api/stats');
+    document.getElementById('stat-total').textContent = stats.totalEmployees;
+    document.getElementById('stat-checked').textContent = stats.checkedIn;
+    document.getElementById('stat-leave').textContent = stats.onLeave;
+    document.getElementById('stat-duty').textContent = stats.onDuty;
+  } catch (e) { /* silent */ }
+}
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  const sunIcon = document.getElementById('icon-sun');
+  const moonIcon = document.getElementById('icon-moon');
+  if (theme === 'dark') {
+    root.classList.add('dark');
+    sunIcon.classList.remove('hidden');
+    moonIcon.classList.add('hidden');
+  } else {
+    root.classList.remove('dark');
+    sunIcon.classList.add('hidden');
+    moonIcon.classList.remove('hidden');
+  }
+  localStorage.setItem('ar-theme', theme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('ar-theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+}
+
+const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
+
+function openMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.remove('-translate-x-full');
+  sidebar.classList.add('translate-x-0');
+  overlay.classList.remove('hidden');
+  requestAnimationFrame(() => overlay.classList.remove('opacity-0'));
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.add('-translate-x-full');
+  sidebar.classList.remove('translate-x-0');
+  overlay.classList.add('opacity-0');
+  setTimeout(() => overlay.classList.add('hidden'), 200);
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar.classList.contains('translate-x-0')) {
+    closeMobileSidebar();
+  } else {
+    openMobileSidebar();
+  }
+}
+
+function initSidebar() {
+  closeMobileSidebar();
+
+  window.addEventListener('resize', () => {
+    if (isDesktop()) {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.remove('-translate-x-full', 'translate-x-0');
+      document.getElementById('sidebar-overlay').classList.add('hidden', 'opacity-0');
+    } else {
+      closeMobileSidebar();
+    }
+  });
+}
+
+function showToast(message, type='info') {
+  const container = document.getElementById('toast-container');
+  const colors = { info: 'bg-slate-800', success: 'bg-brand-600', warn: 'bg-gold-600', error: 'bg-red-600' };
+  const el = document.createElement('div');
+  el.className = `toast-enter ${colors[type] || colors.info} text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg sm:max-w-xs`;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.transition = 'opacity .3s, transform .3s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    setTimeout(() => el.remove(), 300);
+  }, 2800);
+}
+
+function setActivePanel(key) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+  const target = document.getElementById('panel-' + key);
+  target.classList.remove('hidden');
+  target.classList.add('fade-in');
+
+  document.querySelectorAll('.nav-item[data-panel]').forEach(btn => {
+    const isActive = btn.dataset.panel === key;
+    btn.classList.toggle('bg-brand-600', isActive);
+    btn.classList.toggle('font-semibold', isActive);
+    btn.classList.toggle('text-brand-50/90', !isActive);
+    btn.classList.toggle('hover:bg-white/10', !isActive);
+  });
+
+  if (subPanels[key]) {
+    renderSubPanel(key);
+  } else if (key === 'dashboard') {
+    renderDashboardWidgets();
+    renderAnalyticsCards();
+    renderDashboardAnalyticsGraph();
+  } else if (key === 'scanner') {
+    resetScannerFlow();
+  } else if (key === 'register-employee') {
+    loadRegisterFrame();
+  }
+
+  if (!isDesktop()) closeMobileSidebar();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function renderSubPanel(key) {
+  if (!key) return;
+  const data = subPanels[key];
+  const c = colorMap[data.color];
+  const target = document.getElementById('panel-' + key);
+
+  if (key === 'shift-schedule') {
+    data.stats[0][1] = String(scheduleData.length);
+    data.stats[1][1] = String(new Set(scheduleData.flatMap(s => s.employees)).size);
+  }
+  if (key === 'leave-management') {
+    data.stats[0][1] = String(leaveData.filter(l => l.status === 'Pending').length);
+    data.stats[1][1] = String(leaveData.filter(l => l.status === 'Approved').length);
+    data.stats[2][1] = String(leaveData.filter(l => l.status === 'Declined').length);
+    data.stats[3][1] = String(leaveData.filter(l => l.status === 'Approved').length);
+  }
+
+  let statsHtml = data.isAnalyticsChart ? '' : data.stats.map(([label, value]) => `
+    <div class="${c.bg} rounded-xl p-4">
+      <p class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">${value}</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${label}</p>
+    </div>`).join('');
+
+  let bodyHtml;
+  if (data.isAnalyticsChart) {
+    bodyHtml = `<div id="analytics-detail-root"><p class="text-sm text-slate-400 py-10 text-center">Loading analytics…</p></div>`;
+  } else if (data.isScheduleTable) {
+    bodyHtml = `
+      <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm table-scroll">
+        <table class="w-full text-sm min-w-[560px]">
+          <thead class="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left px-5 py-3 font-semibold">Shift</th>
+              <th class="text-left px-5 py-3 font-semibold">Date</th>
+              <th class="text-left px-5 py-3 font-semibold">Time</th>
+              <th class="text-left px-5 py-3 font-semibold">Employee QR ID</th>
+              <th class="text-left px-5 py-3 font-semibold">Full Name</th>
+            </tr>
+          </thead>
+          <tbody id="full-schedule-tbody" class="divide-y divide-slate-100 dark:divide-white/10"></tbody>
+        </table>
+      </div>`;
+  } else if (data.isLeaveTable) {
+    bodyHtml = `
+      <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm table-scroll">
+        <table class="w-full text-sm min-w-[520px]">
+          <thead class="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="text-left px-5 py-3 font-semibold">Full Name</th>
+              <th class="text-left px-5 py-3 font-semibold">Employee QR ID</th>
+              <th class="text-left px-5 py-3 font-semibold">Leave Date</th>
+              <th class="text-left px-5 py-3 font-semibold">Day Processed</th>
+              <th class="text-left px-5 py-3 font-semibold">Status</th>
+              <th class="text-left px-5 py-3 font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="full-leave-tbody" class="divide-y divide-slate-100 dark:divide-white/10"></tbody>
+        </table>
+      </div>`;
+  } else {
+    const rows = data.table.rows.length
+      ? data.table.rows.map(r => `<tr class="hover:bg-slate-50 dark:hover:bg-white/5">${r.map(cell => `<td class="px-5 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">${cell}</td>`).join('')}</tr>`).join('')
+      : `<tr><td colspan="${data.table.headers.length}" class="px-5 py-8 text-center text-sm text-slate-400">No data yet.</td></tr>`;
+    const heads = data.table.headers.map(h => `<th class="text-left px-5 py-3 font-semibold whitespace-nowrap">${h}</th>`).join('');
+    bodyHtml = `
+      <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm table-scroll">
+        <table class="w-full text-sm min-w-[520px]">
+          <thead class="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide"><tr>${heads}</tr></thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-white/10">${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  target.innerHTML = `
+    <div class="flex flex-wrap items-center gap-4 mb-6">
+      <div class="w-12 h-12 rounded-xl ${c.solid} text-white flex items-center justify-center shrink-0">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">${data.icon}</svg>
+      </div>
+      <div class="min-w-0">
+        <h2 class="text-lg sm:text-xl font-extrabold text-slate-800 dark:text-slate-100">${data.title}</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400">${data.subtitle}</p>
+      </div>
+      ${data.isScheduleTable ? `
+      <button id="btn-schedule-employee" class="text-sm font-semibold text-white ${c.solid} px-4 py-2 rounded-lg hover:opacity-90 transition sm:ml-auto flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
+        Schedule Employee
+      </button>
+      <button data-panel="dashboard" class="nav-item text-sm font-semibold ${c.text} ${c.bg} px-4 py-2 rounded-lg hover:opacity-80 transition">
+        ← Back to Dashboard
+      </button>
+      ` : data.isLeaveTable ? `
+      <button id="btn-new-leave" class="text-sm font-semibold text-white ${c.solid} px-4 py-2 rounded-lg hover:opacity-90 transition sm:ml-auto flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
+        New Leave Request
+      </button>
+      <button data-panel="dashboard" class="nav-item text-sm font-semibold ${c.text} ${c.bg} px-4 py-2 rounded-lg hover:opacity-80 transition">
+        ← Back to Dashboard
+      </button>
+      ` : `
+      <button data-panel="dashboard" class="nav-item sm:ml-auto text-sm font-semibold ${c.text} ${c.bg} px-4 py-2 rounded-lg hover:opacity-80 transition">
+        ← Back to Dashboard
+      </button>
+      `}
+    </div>
+    ${data.isAnalyticsChart ? '' : `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">${statsHtml}</div>`}
+    ${bodyHtml}
+  `;
+
+  if (data.isLeaveTable) {
+    renderFullLeaveTable();
+    document.getElementById('btn-new-leave').addEventListener('click', openLeaveModal);
+  }
+  if (data.isScheduleTable) {
+    renderFullScheduleTable();
+    document.getElementById('btn-schedule-employee').addEventListener('click', openScheduleModal);
+  }
+  if (data.isAnalyticsChart) {
+    renderAnalyticsDetail();
+  }
+  attachDynamicListeners();
+}
+
+function renderFullScheduleTable() {
+  const tbody = document.getElementById('full-schedule-tbody');
+  if (!tbody) return;
+  const rows = [];
+  scheduleData.forEach((s) => {
+    const emps = s.employees && s.employees.length ? s.employees : [null];
+    emps.forEach((emp, idx) => {
+      const fullName = emp ? (typeof emp === 'string' ? emp : (emp.name || emp.fullName || '')) : '';
+      const qrId = emp && typeof emp === 'object' ? (emp.qrId || emp.employeeId || emp.id || '') : employeeQrId(fullName);
+      rows.push(`
+        <tr class="hover:bg-slate-50 dark:hover:bg-white/5 align-top">
+          <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">${idx === 0 ? s.shiftName : ''}</td>
+          <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">${idx === 0 ? s.date : ''}</td>
+          <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">${idx === 0 ? s.time : ''}</td>
+          <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono text-xs">${qrId || '<span class="text-slate-400">—</span>'}</td>
+          <td class="px-5 py-3 text-slate-700 dark:text-slate-200 whitespace-nowrap">${fullName || '<span class="text-slate-400 text-xs">No employees yet</span>'}</td>
+        </tr>`);
+    });
+  });
+  tbody.innerHTML = rows.join('');
+}
+
+function employeeQrId(name) {
+  if (!name) return '';
+  // Deterministic display-only QR ID derived from the employee name
+  // (backend can override by providing employees as objects with qrId).
+  const slug = String(name).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 6);
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `EMP-${slug}-${(h % 9000 + 1000)}`;
+}
+
+function openScheduleModal() {
+  document.getElementById('schedule-modal-overlay').classList.remove('hidden');
+  refreshScheduleModalOptions();
+  toggleNewShiftFields();
+}
+
+function refreshScheduleModalOptions() {
+  const select = document.getElementById('schedule-employee-select');
+  select.innerHTML = employeeRoster.length
+    ? employeeRoster.map(name => `<option value="${name}">${name}</option>`).join('')
+    : `<option value="">Select an employee</option>`;
+
+  const shiftSelect = document.getElementById('schedule-shift-select');
+  shiftSelect.innerHTML = scheduleData.map(s => `<option value="${s.id}">${s.shiftName} — ${s.date}</option>`).join('') +
+    `<option value="new">+ Select a Shift for destination</option>`;
+}
+
+function closeScheduleModal() {
+  document.getElementById('schedule-modal-overlay').classList.add('hidden');
+}
+
+function toggleNewShiftFields() {
+  const isNew = document.getElementById('schedule-shift-select').value === 'new';
+  document.getElementById('new-shift-fields').classList.toggle('hidden', !isNew);
+}
+
+async function handleQuickAddEmployee() {
+  const input = document.getElementById('quick-add-employee');
+  const name = input.value.trim();
+  if (!name) {
+    showToast('Type an employee name first.', 'error');
+    return;
+  }
+  try {
+    const data = await apiPost('/api/employees', { name });
+    employeeRoster = data.employees;
+    input.value = '';
+    refreshScheduleModalOptions();
+    document.getElementById('schedule-employee-select').value = name;
+    showToast(`${name} added to the roster.`, 'success');
+    refreshStats();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function submitScheduleForm(e) {
+  e.preventDefault();
+  const employee = document.getElementById('schedule-employee-select').value;
+  const shiftChoice = document.getElementById('schedule-shift-select').value;
+
+  if (!employee) {
+    showToast('Add or select an employee first.', 'error');
+    return;
+  }
+
+  try {
+    if (shiftChoice === 'new') {
+      const name = document.getElementById('new-shift-name').value.trim();
+      const date = document.getElementById('new-shift-date').value.trim();
+      const time = document.getElementById('new-shift-time').value.trim();
+      if (!name || !date || !time) {
+        showToast('Please fill out all new shift details.', 'error');
+        return;
+      }
+      const data = await apiPost('/api/schedules', { shiftName: name, date, time, employee });
+      scheduleData = data.schedules;
+      showToast(`${employee} scheduled for the new shift "${name}".`, 'success');
+    } else {
+      const data = await apiPost(`/api/schedules/${shiftChoice}/assign`, { employee });
+      scheduleData = data.schedules;
+      showToast(`${employee} scheduled for ${data.shift.shiftName}.`, 'success');
+    }
+    renderFullScheduleTable();
+    renderDashboardWidgets();
+    refreshStats();
+    closeScheduleModal();
+    document.getElementById('schedule-form').reset();
+  } catch (e) {
+    showToast(e.message, 'warn');
+  }
+}
+
+function openLeaveModal() {
+  document.getElementById('leave-modal-overlay').classList.remove('hidden');
+}
+function closeLeaveModal() {
+  document.getElementById('leave-modal-overlay').classList.add('hidden');
+}
+
+async function submitLeaveForm(e) {
+  e.preventDefault();
+  const name = document.getElementById('leave-name').value.trim();
+  const dates = document.getElementById('leave-dates').value.trim();
+  if (!name || !dates) {
+    showToast('Please fill out employee name and dates.', 'error');
+    return;
+  }
+  try {
+    const data = await apiPost('/api/leaves', { name, dates });
+    leaveData.push(data.leave);
+    showToast(`Leave request submitted for ${name}.`, 'success');
+    renderFullLeaveTable();
+    renderDashboardWidgets();
+    closeLeaveModal();
+    document.getElementById('leave-form').reset();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function renderFullLeaveTable() {
+  const tbody = document.getElementById('full-leave-tbody');
+  if (!tbody) return;
+  if (leaveData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="px-5 py-8 text-center text-sm text-slate-400">No leave requests.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = leaveData.map((l) => {
+    const statusColor = l.status === 'Approved' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10'
+      : l.status === 'Declined' ? 'text-red-600 bg-red-50 dark:bg-red-500/10'
+      : 'text-gold-600 bg-gold-400/10';
+    const actions = l.status === 'Pending'
+      ? `<button class="approve-btn text-xs font-semibold text-emerald-600 hover:underline mr-3" data-id="${l.id}">Approve</button>
+         <button class="decline-btn text-xs font-semibold text-red-600 hover:underline" data-id="${l.id}">Decline</button>`
+      : `<span class="text-xs text-slate-400">No action</span>`;
+    const qrId = l.qrId || l.employeeId || employeeQrId(l.name);
+    const processed = l.processedAt || l.processedOn || l.updatedAt || l.createdAt || '';
+    const dayName = processed ? weekdayName(processed) : '—';
+    const processedLabel = processed ? formatDateOnly(processed) : '<span class="text-slate-400">Pending</span>';
+    return `
+      <tr class="hover:bg-slate-50 dark:hover:bg-white/5">
+        <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${l.name}</td>
+        <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono text-xs">${qrId}</td>
+        <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">${l.dates}</td>
+        <td class="px-5 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">${processedLabel}<span class="ml-2 text-[11px] text-slate-400">${dayName !== '—' ? dayName : ''}</span></td>
+        <td class="px-5 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor}">${l.status}</span></td>
+        <td class="px-5 py-3 whitespace-nowrap">${actions}</td>
+      </tr>`;
+  }).join('');
+
+  function weekdayName(dateLike) {
+    const d = new Date(dateLike);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString(undefined, { weekday: 'long' });
+  }
+  function formatDateOnly(dateLike) {
+    const d = new Date(dateLike);
+    if (isNaN(d.getTime())) return String(dateLike);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  tbody.querySelectorAll('.approve-btn').forEach(btn => btn.addEventListener('click', () => handleLeaveAction(+btn.dataset.id, 'approve')));
+  tbody.querySelectorAll('.decline-btn').forEach(btn => btn.addEventListener('click', () => handleLeaveAction(+btn.dataset.id, 'decline')));
+}
+
+async function handleLeaveAction(id, action) {
+  try {
+    const data = await apiPost(`/api/leaves/${id}/${action}`);
+    const idx = leaveData.findIndex(l => l.id === id);
+    if (idx !== -1) leaveData[idx] = data.leave;
+    showToast(`${data.leave.name}'s leave request ${data.leave.status.toLowerCase()}.`, action === 'approve' ? 'success' : 'error');
+    renderFullLeaveTable();
+    renderDashboardWidgets();
+    refreshStats();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function attachDynamicListeners() {
+  document.querySelectorAll('.nav-item[data-panel]').forEach(btn => {
+    btn.onclick = () => setActivePanel(btn.dataset.panel);
+  });
+}
+
+function renderDashboardWidgets() {
+  const scheduleList = document.getElementById('schedule-list');
+  if (scheduleList) {
+    const upcoming = scheduleData.slice(0, 3);
+    scheduleList.innerHTML = upcoming.length ? upcoming.map(s => {
+      const [month, day] = s.date.split(' ');
+      return `
+      <li class="flex items-start gap-3">
+        <div class="w-11 h-11 shrink-0 rounded-lg bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-600 dark:text-slate-300">
+          <span class="text-[10px] font-semibold -mb-0.5">${(month || '').toUpperCase()}</span><span class="text-sm font-bold leading-none">${day || ''}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">${s.shiftName}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${s.time} &middot; ${s.employees.length} Employee${s.employees.length === 1 ? '' : 's'}</p>
+        </div>
+        <span class="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full h-fit shrink-0">Scheduled</span>
+      </li>`;
+    }).join('') : `<li class="text-sm text-slate-400 text-center py-6">No upcoming schedules.</li>`;
+  }
+
+  const leaveList = document.getElementById('leave-list');
+  if (leaveList) {
+    const preview = leaveData.slice(-3).reverse();
+    leaveList.innerHTML = preview.length ? preview.map(l => {
+      const statusColor = l.status === 'Approved' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10'
+        : l.status === 'Declined' ? 'text-red-600 bg-red-50 dark:bg-red-500/10'
+        : 'text-gold-600 bg-gold-400/10';
+      return `
+      <li class="flex items-center justify-between gap-3" data-name="${l.name}">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">${l.name}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">${l.dates}</p>
+        </div>
+        <span class="status-badge text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${statusColor}">${l.status}</span>
+      </li>`;
+    }).join('') : `<li id="leave-list-empty" class="text-sm text-slate-400 text-center py-6">No leave requests.</li>`;
+  }
+}
+
+let analyticsCache = null;
+
+async function fetchAnalytics() {
+  try {
+    analyticsCache = await apiGet('/api/analytics');
+  } catch (e) {
+    analyticsCache = null;
+  }
+  return analyticsCache;
+}
+
+function donutSvg(pct, color) {
+  const r = 26, c = 2 * Math.PI * r;
+  const offset = c - (Math.max(0, Math.min(100, pct)) / 100) * c;
+  return `
+  <svg viewBox="0 0 64 64" class="w-16 h-16 shrink-0 -rotate-90">
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="currentColor" class="text-slate-100 dark:text-white/10" stroke-width="7"/>
+    <circle cx="32" cy="32" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"/>
+  </svg>`;
+}
+
+function renderAnalyticsCards() {
+  const root = document.getElementById('analytics-cards');
+  if (!root) return;
+  const a = analyticsCache;
+  if (!a) {
+    root.innerHTML = `<p class="col-span-full text-sm text-slate-400 py-4">Analytics unavailable — backend not reachable.</p>`;
+    return;
+  }
+  const cards = [
+    { label: 'Attendance Rate', metric: a.attendanceRate, color: '#5a9c3f' },
+    { label: 'On-Time Rate', metric: a.onTimeRate, color: '#f4b942' },
+    { label: 'Leave Utilization', metric: a.leaveUtilization, color: '#8b5cf6' },
+    { label: 'Avg. Hours Logged', metric: a.avgHours, color: '#356123', isHours: true },
+  ];
+  root.innerHTML = cards.map(c => `
+    <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+      ${c.isHours ? `
+        <div class="w-16 h-16 shrink-0 rounded-full bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-700 dark:text-brand-300 font-extrabold text-sm">${c.metric.value}h</div>
+      ` : donutSvg(c.metric.value, c.color)}
+      <div class="min-w-0">
+        <p class="text-2xl font-extrabold text-slate-800 dark:text-slate-100">${c.metric.value}${c.isHours ? 'h' : '%'}</p>
+        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">${c.label}</p>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">${c.metric.formula}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function barsSvg(points, labels, color) {
+  const w = 480, h = 160, pad = 24;
+  const max = Math.max(1, ...points);
+  const bw = (w - pad * 2) / points.length * 0.6;
+  const gap = (w - pad * 2) / points.length;
+  const bars = points.map((v, i) => {
+    const bh = (v / max) * (h - pad * 2);
+    const x = pad + i * gap + (gap - bw) / 2;
+    const y = h - pad - bh;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="4" fill="${color}"/>
+            <text x="${(x + bw / 2).toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="10" fill="#64748b" text-anchor="middle">${v}</text>`;
+  }).join('');
+  const labelsSvg = labels.map((l, i) => `<text x="${(pad + i * gap + gap / 2).toFixed(1)}" y="${h - 6}" font-size="9" fill="#94a3b8" text-anchor="middle">${l}</text>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" class="w-full h-40">${bars}${labelsSvg}</svg>`;
+}
+
+function renderAnalyticsDetailBody(a) {
+  const rows = [
+    { label: 'Attendance Rate', metric: a.attendanceRate, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-50 dark:bg-brand-500/10' },
+    { label: 'On-Time Rate', metric: a.onTimeRate, color: 'text-gold-600 dark:text-gold-400', bg: 'bg-gold-400/10' },
+    { label: 'Leave Utilization', metric: a.leaveUtilization, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-500/10' },
+    { label: 'Avg. Hours Logged / Employee', metric: a.avgHours, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', isHours: true },
+  ];
+  return `
+    <div class="flex flex-wrap items-center justify-end gap-2 mb-4">
+      <button id="btn-download-analytics" class="text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 px-3 py-2 rounded-lg inline-flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+        Download Analytics
+      </button>
+      <button id="btn-download-ai-analytics" class="text-sm font-semibold text-brand-900 bg-gold-400 hover:bg-gold-500 px-3 py-2 rounded-lg inline-flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3M5.6 5.6l2.1 2.1m8.6 8.6l2.1 2.1M3 12h3m12 0h3M5.6 18.4l2.1-2.1m8.6-8.6l2.1-2.1"/></svg>
+        Download AI-Based Analytics
+      </button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      ${rows.map(r => `
+        <div class="${r.bg} rounded-xl p-4">
+          <div class="flex items-baseline justify-between">
+            <p class="font-semibold text-sm text-slate-700 dark:text-slate-200">${r.label}</p>
+            <p class="text-2xl font-extrabold ${r.color}">${r.metric.value}${r.isHours ? 'h' : '%'}</p>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 font-mono leading-relaxed">${r.metric.formula}</p>
+        </div>
+      `).join('')}
+    </div>
+    <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm p-5 mb-6">
+      <h4 class="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Scans logged per day (last 7 days)</h4>
+      ${barsSvg(a.weeklyTrend.map(d => d.checkins), a.weeklyTrend.map(d => d.day), '#5a9c3f')}
+      <p class="text-xs text-slate-400 mt-2">Each bar counts attendance records created via the Scanner (QR + Face Recognition) that day.</p>
+    </div>
+    <div class="bg-white dark:bg-ink-800 dark:border-white/5 rounded-2xl border border-slate-100 shadow-sm table-scroll">
+      <table class="w-full text-sm min-w-[520px]">
+        <thead class="bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+          <tr><th class="text-left px-5 py-3 font-semibold">Metric</th><th class="text-left px-5 py-3 font-semibold">Value</th><th class="text-left px-5 py-3 font-semibold">How it's computed</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-white/10">
+          ${rows.map(r => `<tr><td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${r.label}</td><td class="px-5 py-3 whitespace-nowrap">${r.metric.value}${r.isHours ? 'h' : '%'}</td><td class="px-5 py-3 text-slate-600 dark:text-slate-300">${r.metric.formula}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAnalyticsDetail() {
+  const root = document.getElementById('analytics-detail-root');
+  if (!root) return;
+  const a = analyticsCache;
+  if (!a) {
+    root.innerHTML = `<p class="text-sm text-slate-400 py-10 text-center">Could not load analytics from the backend.</p>`;
+    return;
+  }
+  root.innerHTML = renderAnalyticsDetailBody(a);
+  const dlBtn = document.getElementById('btn-download-analytics');
+  const dlAiBtn = document.getElementById('btn-download-ai-analytics');
+  if (dlBtn) dlBtn.addEventListener('click', () => downloadAnalytics('raw'));
+  if (dlAiBtn) dlAiBtn.addEventListener('click', () => downloadAnalytics('ai'));
+}
+
+function downloadAnalytics(kind) {
+  const a = analyticsCache;
+  if (!a) { showToast('Analytics not loaded yet.', 'error'); return; }
+  const stamp = new Date().toISOString().slice(0, 10);
+  let filename, content, mime;
+  if (kind === 'ai') {
+    // AI-based / computed analytics with formulas + insights
+    const insights = [];
+    if (a.attendanceRate?.value < 80) insights.push('Attendance rate is below 80% — review absenteeism patterns.');
+    if (a.onTimeRate?.value < 85) insights.push('On-time rate is trending low — consider shift-start reminders.');
+    if (a.leaveUtilization?.value > 60) insights.push('High leave utilization — check coverage for upcoming shifts.');
+    if (a.avgHours?.value < 6) insights.push('Average logged hours are low — verify check-out compliance.');
+    if (!insights.length) insights.push('All computed metrics are within healthy operating ranges.');
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      type: 'ai-based-analytics',
+      metrics: {
+        attendanceRate: a.attendanceRate,
+        onTimeRate: a.onTimeRate,
+        leaveUtilization: a.leaveUtilization,
+        avgHours: a.avgHours,
+      },
+      weeklyTrend: a.weeklyTrend,
+      aiInsights: insights,
+    };
+    filename = `workforce-ai-analytics-${stamp}.json`;
+    content = JSON.stringify(payload, null, 2);
+    mime = 'application/json';
+  } else {
+    // Raw analytics only — CSV
+    const rows = [
+      ['Metric', 'Value', 'Formula'],
+      ['Attendance Rate', a.attendanceRate.value + '%', a.attendanceRate.formula],
+      ['On-Time Rate', a.onTimeRate.value + '%', a.onTimeRate.formula],
+      ['Leave Utilization', a.leaveUtilization.value + '%', a.leaveUtilization.formula],
+      ['Avg Hours Logged', a.avgHours.value + 'h', a.avgHours.formula],
+    ];
+    (a.weeklyTrend || []).forEach(d => rows.push(['Scans on ' + d.day, String(d.checkins), 'Daily attendance record count']));
+    content = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    filename = `workforce-analytics-${stamp}.csv`;
+    mime = 'text/csv';
+  }
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(kind === 'ai' ? 'AI-based analytics downloaded.' : 'Analytics downloaded.', 'success');
+}
+
+function renderDashboardAnalyticsGraph() {
+  const root = document.getElementById('dashboard-analytics-graph');
+  if (!root) return;
+  const a = analyticsCache;
+  if (!a) {
+    root.innerHTML = `<p class="text-sm text-slate-400 py-10 text-center">Analytics unavailable — backend not reachable.</p>`;
+    return;
+  }
+  root.innerHTML = `
+    <h4 class="font-semibold text-sm text-slate-700 dark:text-slate-300 mb-3">Scans logged per day (last 7 days)</h4>
+    ${barsSvg(a.weeklyTrend.map(d => d.checkins), a.weeklyTrend.map(d => d.day), '#5a9c3f')}
+    <p class="text-xs text-slate-400 mt-2 mb-4">Each bar counts attendance records created via the Scanner (QR + Face Recognition) that day. This is the same live data used to compute every metric above.</p>
+    <div class="bg-slate-50 dark:bg-white/5 rounded-xl table-scroll">
+      <table class="w-full text-sm min-w-[520px]">
+        <thead class="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+          <tr><th class="text-left px-4 py-2 font-semibold">Metric</th><th class="text-left px-4 py-2 font-semibold">Value</th><th class="text-left px-4 py-2 font-semibold">How it's computed</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+          <tr><td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">Attendance Rate</td><td class="px-4 py-2 whitespace-nowrap">${a.attendanceRate.value}%</td><td class="px-4 py-2 text-slate-600 dark:text-slate-300">${a.attendanceRate.formula}</td></tr>
+          <tr><td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">On-Time Rate</td><td class="px-4 py-2 whitespace-nowrap">${a.onTimeRate.value}%</td><td class="px-4 py-2 text-slate-600 dark:text-slate-300">${a.onTimeRate.formula}</td></tr>
+          <tr><td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">Leave Utilization</td><td class="px-4 py-2 whitespace-nowrap">${a.leaveUtilization.value}%</td><td class="px-4 py-2 text-slate-600 dark:text-slate-300">${a.leaveUtilization.formula}</td></tr>
+          <tr><td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">Avg. Hours Logged / Employee</td><td class="px-4 py-2 whitespace-nowrap">${a.avgHours.value}h</td><td class="px-4 py-2 text-slate-600 dark:text-slate-300">${a.avgHours.formula}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* =========================================================
+   Scanner panel — sequential flow: QR Code first, then Face
+   Recognition appears as a verification step after a
+   successful QR scan. Face iframe is now loaded with the
+   employee_id that came back from the QR verification, so
+   /facerecog?employee_id=... knows whose face to check.
+========================================================= */
+let scanResults = [];
+
+function addScanResult(entry) {
+  const now = new Date();
+  scanResults.unshift({
+    time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    ...entry,
+  });
+  if (scanResults.length > 30) scanResults.length = 30;
+  renderScanResults();
+}
+
+function renderScanResults() {
+  const list = document.getElementById('scan-results-list');
+  if (!list) return;
+  if (!scanResults.length) {
+    list.innerHTML = `<li id="scan-results-empty" class="text-xs text-slate-400 text-center py-8">No scans yet. Point a QR code at the camera to begin.</li>`;
+    return;
+  }
+  list.innerHTML = scanResults.map(r => {
+    const tone = r.kind === 'face'
+      ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/5'
+      : r.kind === 'error'
+        ? 'border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/5'
+        : 'border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/5';
+    const badge = r.kind === 'face' ? 'Face ✓' : r.kind === 'error' ? 'Error' : 'QR ✓';
+    const badgeCls = r.kind === 'face' ? 'bg-emerald-600' : r.kind === 'error' ? 'bg-red-600' : 'bg-brand-600';
+    return `
+      <li class="border ${tone} rounded-xl px-3 py-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold text-white ${badgeCls} px-2 py-0.5 rounded-full">${badge}</span>
+          <span class="text-[10px] text-slate-400">${r.time}</span>
+        </div>
+        <p class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">${r.name || 'Unknown'}</p>
+        <p class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">${r.qrId || '—'}</p>
+        ${r.message ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">${r.message}</p>` : ''}
+      </li>`;
+  }).join('');
+}
+
+function clearScanResults() {
+  scanResults = [];
+  renderScanResults();
+}
+
+function resetScannerFlow() {
+  const qrStep = document.getElementById('qr-scanner-step');
+  const faceStep = document.getElementById('face-scanner-step');
+  const faceFrame = document.getElementById('face-scanner-frame');
+  const qrFrame = document.getElementById('qr-scanner-frame');
+  if (!qrStep || !faceStep) return;
+  qrStep.classList.remove('hidden');
+  faceStep.classList.add('hidden');
+  if (faceFrame) faceFrame.src = 'about:blank';
+  if (qrFrame) qrFrame.src = '/qrcodescanner';
+  const overlay = document.getElementById('scan-again-overlay');
+  if (overlay) overlay.classList.add('hidden');
+  renderScanResults();
+}
+
+function onQrScanSuccess(employeeId, employeeName) {
+  // Hide QR stage entirely, reveal Face stage, log result in sidebar.
+  const qrStep = document.getElementById('qr-scanner-step');
+  const faceStep = document.getElementById('face-scanner-step');
+  const faceFrame = document.getElementById('face-scanner-frame');
+  const qrFrame = document.getElementById('qr-scanner-frame');
+  if (!faceStep || !faceFrame) return;
+
+  if (qrStep) qrStep.classList.add('hidden');
+  if (qrFrame) qrFrame.src = 'about:blank';
+  faceStep.classList.remove('hidden');
+
+  const baseSrc = faceFrame.dataset.src || '/deepfacerecog';
+  faceFrame.src = employeeId
+    ? `${baseSrc}?employee_id=${encodeURIComponent(employeeId)}`
+    : baseSrc;
+
+  addScanResult({
+    kind: 'qr',
+    qrId: employeeId || '—',
+    name: employeeName || 'Unknown',
+    message: 'QR verified — awaiting face check.',
+  });
+}
+
+function onFaceScanSuccess(employeeId, employeeName, extra) {
+  // Hide face stage, log result, show popup to scan again.
+  const faceStep = document.getElementById('face-scanner-step');
+  const faceFrame = document.getElementById('face-scanner-frame');
+  if (faceStep) faceStep.classList.add('hidden');
+  if (faceFrame) faceFrame.src = 'about:blank';
+
+  addScanResult({
+    kind: 'face',
+    qrId: employeeId || '—',
+    name: employeeName || 'Unknown',
+    message: (extra && extra.message) || 'Face recognized successfully.',
+  });
+
+  const overlay = document.getElementById('scan-again-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function onFaceScanError(message, employeeId, employeeName) {
+  addScanResult({
+    kind: 'error',
+    qrId: employeeId || '—',
+    name: employeeName || 'Unknown',
+    message: message || 'Face recognition failed.',
+  });
+}
+
+// Bridge for iframes that dispatch postMessage instead of calling directly.
+window.addEventListener('message', (event) => {
+  const d = event.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'qr-scan-success') onQrScanSuccess(d.employeeId, d.employeeName);
+  else if (d.type === 'face-scan-success') onFaceScanSuccess(d.employeeId, d.employeeName, d);
+  else if (d.type === 'face-scan-error') onFaceScanError(d.message, d.employeeId, d.employeeName);
+});
+
+window.onQrScanSuccess = onQrScanSuccess;
+window.onFaceScanSuccess = onFaceScanSuccess;
+window.onFaceScanError = onFaceScanError;
+window.resetScannerFlow = resetScannerFlow;
+
+function loadRegisterFrame() {
+  const frame = document.getElementById('register-employee-frame');
+  if (frame && frame.src === 'about:blank') {
+    frame.src = frame.dataset.src || '/registerface';
+  }
+}
+window.loadRegisterFrame = loadRegisterFrame;
+
+function drawTrendChart() {
+  const points = [80, 95, 88, 105, 100, 130, 90];
+  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const w = 320, h = 140, pad = 10;
+  const max = 150;
+  const stepX = (w - pad*2) / (points.length - 1);
+  const coords = points.map((v, i) => [pad + i*stepX, h - pad - (v/max)*(h - pad*2)]);
+  const path = coords.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaPath = path + ` L${coords[coords.length-1][0]},${h-pad} L${coords[0][0]},${h-pad} Z`;
+
+  const dots = coords.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="#5a9c3f" />`).join('');
+  const labelsSvg = labels.map((l, i) => `<text x="${coords[i][0]}" y="${h}" font-size="9" fill="#94a3b8" text-anchor="middle">${l}</text>`).join('');
+
+  const svg = document.getElementById('trend-chart');
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#5a9c3f" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="#5a9c3f" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#areaFill)" stroke="none"/>
+    <path d="${path}" fill="none" stroke="#5a9c3f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}
+    ${labelsSvg}
+  `;
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  list.innerHTML = notifications.map((n) => `
+    <li class="px-4 py-3 flex gap-3 ${n.read ? 'opacity-50' : ''}">
+      <div class="w-2 h-2 rounded-full mt-1.5 ${n.read ? 'bg-transparent' : 'bg-gold-500'} shrink-0"></div>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">${n.title}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">${n.body}</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">${n.time}</p>
+      </div>
+    </li>
+  `).join('');
+  const unread = notifications.filter(n => !n.read).length;
+  const badge = document.getElementById('bell-badge');
+  badge.textContent = unread;
+  badge.style.display = unread === 0 ? 'none' : 'flex';
+}
+
+async function loadInitialData() {
+  try {
+    const [emp, sched, lv, notif] = await Promise.all([
+      apiGet('/api/employees'),
+      apiGet('/api/schedules'),
+      apiGet('/api/leaves'),
+      apiGet('/api/notifications'),
+    ]);
+    employeeRoster = emp.employees;
+    scheduleData = sched.schedules;
+    leaveData = lv.leaves;
+    notifications = notif.notifications;
+  } catch (e) {
+    showToast('Could not reach the backend. Is app.py running?', 'error');
+  }
+  await fetchAnalytics();
+  renderDashboardWidgets();
+  renderAnalyticsCards();
+  renderDashboardAnalyticsGraph();
+  renderNotifications();
+  refreshStats();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  initTheme();
+  initSidebar();
+  drawTrendChart();
+  attachDynamicListeners();
+  await loadInitialData();
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    applyTheme(isDark ? 'light' : 'dark');
+  });
+
+  document.getElementById('sidebar-toggle-topbar').addEventListener('click', toggleMobileSidebar);
+  document.getElementById('sidebar-overlay').addEventListener('click', closeMobileSidebar);
+
+  document.getElementById('btn-todays-overview').addEventListener('click', () => {
+    showToast("Here's today's workforce overview.", 'info');
+    document.querySelector('#panel-dashboard').scrollIntoView({behavior:'smooth'});
+  });
+
+  document.querySelectorAll('.goto-btn').forEach(btn => {
+    btn.addEventListener('click', () => setActivePanel(btn.dataset.goto));
+  });
+
+  document.getElementById('btn-manage-leaves').addEventListener('click', () => setActivePanel('leave-management'));
+
+  const bellBtn = document.getElementById('bell-btn');
+  const bellDropdown = document.getElementById('bell-dropdown');
+  bellBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    bellDropdown.classList.toggle('hidden');
+    document.getElementById('profile-dropdown').classList.add('hidden');
+  });
+  document.getElementById('mark-all-read').addEventListener('click', async () => {
+    try {
+      const data = await apiPost('/api/notifications/mark-all-read');
+      notifications = data.notifications;
+      renderNotifications();
+      showToast('All notifications marked as read.', 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  });
+
+  const profileBtn = document.getElementById('profile-btn');
+  const profileDropdown = document.getElementById('profile-dropdown');
+  profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileDropdown.classList.toggle('hidden');
+    bellDropdown.classList.add('hidden');
+  });
+  document.querySelectorAll('.menu-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      profileDropdown.classList.add('hidden');
+      if (action === 'logout') {
+        showToast('Logging out...', 'warn');
+      } else {
+        showToast(`Opening ${btn.textContent.trim()}...`, 'info');
+      }
+    });
+  });
+
+  document.addEventListener('click', () => {
+    bellDropdown.classList.add('hidden');
+    profileDropdown.classList.add('hidden');
+  });
+
+  document.getElementById('schedule-modal-close').addEventListener('click', closeScheduleModal);
+  document.getElementById('schedule-cancel-btn').addEventListener('click', closeScheduleModal);
+  document.getElementById('schedule-shift-select').addEventListener('change', toggleNewShiftFields);
+  document.getElementById('schedule-form').addEventListener('submit', submitScheduleForm);
+  document.getElementById('quick-add-employee-btn').addEventListener('click', handleQuickAddEmployee);
+  document.getElementById('schedule-modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'schedule-modal-overlay') closeScheduleModal();
+  });
+
+  document.getElementById('leave-modal-close').addEventListener('click', closeLeaveModal);
+  document.getElementById('leave-cancel-btn').addEventListener('click', closeLeaveModal);
+  document.getElementById('leave-form').addEventListener('submit', submitLeaveForm);
+  document.getElementById('leave-modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'leave-modal-overlay') closeLeaveModal();
+  });
+
+  document.getElementById('scanner-back-to-qr').addEventListener('click', resetScannerFlow);
+
+  const clearBtn = document.getElementById('scan-results-clear');
+  if (clearBtn) clearBtn.addEventListener('click', clearScanResults);
+  const scanAgainClose = document.getElementById('scan-again-close');
+  const scanAgainConfirm = document.getElementById('scan-again-confirm');
+  const scanAgainOverlay = document.getElementById('scan-again-overlay');
+  if (scanAgainClose) scanAgainClose.addEventListener('click', () => scanAgainOverlay.classList.add('hidden'));
+  if (scanAgainConfirm) scanAgainConfirm.addEventListener('click', resetScannerFlow);
+  if (scanAgainOverlay) scanAgainOverlay.addEventListener('click', (e) => {
+    if (e.target.id === 'scan-again-overlay') scanAgainOverlay.classList.add('hidden');
+  });
+
+  const searchInput = document.getElementById('search-input');
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && searchInput.value.trim()) {
+      showToast(`Searching for "${searchInput.value.trim()}"...`, 'info');
+    }
+  });
+});
+</script>
+</body>
+</html>

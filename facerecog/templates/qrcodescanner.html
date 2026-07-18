@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>QR Scanner</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center p-6">
+
+<h1 class="text-4xl font-bold mb-6">
+QR Code Scanner
+</h1>
+
+
+<div class="bg-slate-800 p-5 rounded-xl">
+
+<div id="reader" class="w-80"></div>
+
+</div>
+
+
+<div id="result"
+class="mt-6 bg-slate-800 p-5 rounded-xl w-96 hidden">
+
+<h2 class="text-2xl font-bold mb-3">
+Employee Information
+</h2>
+
+<p id="info"></p>
+
+</div>
+
+<!-- NEW: error state na hindi na basta alert() - mas malinaw kung
+     "not found" ba talaga o "hindi na-reach" yung server, at may
+     Scan Again button para hindi na kailangan i-reload manually. -->
+<div id="error-box"
+class="mt-6 bg-red-900/40 border border-red-500/40 p-5 rounded-xl w-96 hidden">
+
+<p id="error-message" class="text-red-200"></p>
+
+<button id="retry-btn"
+class="mt-4 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+Scan Again
+</button>
+
+</div>
+
+
+<script>
+
+let scanner = new Html5QrcodeScanner(
+
+    "reader",
+
+    {
+        fps:10,
+        qrbox:250
+    }
+
+);
+
+
+function showError(message){
+
+    document.getElementById("result").classList.add("hidden");
+
+    document.getElementById("error-message").textContent = message;
+
+    document.getElementById("error-box").classList.remove("hidden");
+
+}
+
+
+function hideError(){
+
+    document.getElementById("error-box").classList.add("hidden");
+
+}
+
+
+function restartScanner(){
+
+    hideError();
+
+    document.getElementById("result").classList.add("hidden");
+
+    // i-render ulit yung camera view para makapag-scan ulit
+    scanner.render(onScanSuccess, onScanFailure);
+
+}
+
+
+document.getElementById("retry-btn").addEventListener("click", restartScanner);
+
+
+// NEW: kinukuha na lang natin yung employee_id mula sa QR content,
+// tapos fetch relative sa CURRENT origin ("/employee/<id>") sa halip
+// na yung buong absolute URL na naka-bake sa QR noong nag-register
+// (hal. http://127.0.0.1:5000/employee/xxxx). Kung LAN IP o ibang
+// domain/device ang gumagamit ng camera, hindi na tumutugma yung
+// naka-bake na host - kaya laging fail kahit "meron naman" yung
+// employee. Sa pag-extract lang ng ID at paggamit ng relative path,
+// gagana ito kahit anong host/device ang nag-a-access sa page.
+function extractEmployeeId(decodedText){
+
+    try {
+
+        const url = new URL(decodedText);
+
+        const parts = url.pathname.split("/").filter(Boolean);
+
+        // asahan: [...,"employee","<id>"]
+        const idx = parts.indexOf("employee");
+
+        if (idx !== -1 && parts[idx + 1]) {
+            return parts[idx + 1];
+        }
+
+    } catch (e) {
+        // decodedText pala ay hindi URL - baka ID mismo yung laman
+    }
+
+    // fallback: kunin na lang yung huling segment kung papaano man
+    // hinati ng "/" ang laman, o yung buong text kung wala ngang "/"
+    const segments = decodedText.split("/").filter(Boolean);
+
+    return segments.length ? segments[segments.length - 1] : decodedText;
+
+}
+
+
+function onScanSuccess(decodedText, decodedResult){
+
+    console.log(decodedText);
+
+    hideError();
+
+    // stop scanner pagkatapos mabasa
+    scanner.clear();
+
+    const employeeId = extractEmployeeId(decodedText);
+
+    // NEW: relative fetch - laging tatama sa parehong host/port na
+    // kasalukuyang nagse-serve ng page na ito, kahit LAN IP, ngrok
+    // domain, o localhost man ang ginagamit.
+    fetch(`/qrcodescanner/employee/${encodeURIComponent(employeeId)}`)
+.then(res => {
+
+    if (!res.ok) {
+        // halimbawa 404 - meron tayong response pero walang record
+        return res.json().then(data => {
+            throw { type: "not_found", data };
+        });
+    }
+
+    return res.json();
+
+})
+.then(data => {
+
+    if (data.success) {
+
+        document.getElementById("result")
+        .classList.remove("hidden");
+
+        document.getElementById("info").innerHTML = `
+        <b>Employee ID:</b> ${data.employee_id}<br><br>
+        <b>Name:</b> ${data.name}<br><br>
+        <b>Contact:</b> ${data.contact}<br><br>
+        <b>Address:</b> ${data.address}<br><br>
+        <b>Date Hired:</b> ${data.date_hired}
+        `;
+
+        // sabihin sa parent dashboard (dashboard.html) na verified na
+        // ang QR, para mag-switch ito papuntang Face Recognition step.
+        if (window.parent && window.parent !== window && window.parent.onQrScanSuccess) {
+            window.parent.onQrScanSuccess(data.employee_id, data.name);
+        }
+
+    } else {
+
+        showError("Employee not found. Baka na-delete o hindi pa naka-register.");
+
+    }
+
+})
+.catch(err => {
+
+    console.error("QR verification failed:", err);
+
+    if (err && err.type === "not_found") {
+        showError("Employee not found. Baka na-delete o hindi pa naka-register.");
+    } else {
+        // dito talaga tayo tatamaan kung mismatch ang host/network
+        // (hal. QR na-generate gamit ang ibang IP/domain)
+        showError("Could not reach the server to verify this QR code. Check your network connection at subukan ulit.");
+    }
+
+});
+
+}
+
+function onScanFailure(error){
+
+}
+
+
+scanner.render(
+    onScanSuccess,
+    onScanFailure
+);
+
+
+</script>
+
+
+</body>
+</html>

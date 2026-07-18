@@ -1,0 +1,31 @@
+# Secrets - never commit these
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+*.egg-info/
+
+# App-generated data (photos, QR codes, employee db dump - may contain PII)
+register/
+qrcodes/
+employees.json
+
+# Flask
+instance/
+.flaskenv
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log

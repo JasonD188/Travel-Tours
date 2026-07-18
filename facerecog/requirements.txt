@@ -1,0 +1,11 @@
+﻿Flask
+deepface
+tensorflow
+opencv-python-headless
+numpy
+Pillow
+python-dotenv
+pymongo
+dnspython
+qrcode
+gunicorn

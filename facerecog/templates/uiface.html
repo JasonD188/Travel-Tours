@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Scanner AI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-6">
+
+<div class="bg-slate-800 rounded-3xl shadow-2xl p-8 w-full max-w-6xl">
+
+    <h1 class="text-center text-4xl font-bold text-white mb-8">
+        FACE SCANNER AI
+    </h1>
+
+    <!-- NEW: shows which employee's QR badge we're verifying against,
+         when this page was opened from the QR scan step (?employee_id=...) -->
+    <div id="expectedBadge" class="hidden text-center mb-4 text-sm text-slate-300">
+        Verifying against QR badge: <span id="expectedBadgeId" class="font-mono text-gold-300"></span>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-8">
+
+        <!-- CAMERA -->
+        <div>
+            <div class="relative">
+                <video
+                    id="video"
+                    autoplay
+                    playsinline
+                    class="w-full rounded-2xl border-4 border-green-500">
+                </video>
+                <div class="absolute top-0 left-0 w-full h-1 bg-green-400 animate-pulse"></div>
+
+                <!-- Blink instruction overlay, shown only while capturing -->
+                <div
+                    id="blinkOverlay"
+                    class="hidden absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl">
+                    <span id="blinkOverlayText" class="text-white text-2xl font-bold text-center px-4">
+                        👁️ Kumurap ka ngayon...
+                    </span>
+                </div>
+            </div>
+
+            <button
+                onclick="scanFace()"
+                class="w-full mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition">
+                SCAN FACE
+            </button>
+        </div>
+
+        <!-- RESULT: TWO PHOTOS SIDE BY SIDE -->
+        <div class="flex flex-col items-center justify-center">
+
+            <div class="grid grid-cols-2 gap-4 w-full">
+
+                <!-- REGISTERED PHOTO -->
+                <div class="flex flex-col items-center">
+                    <span class="text-slate-400 text-sm mb-2">Registered</span>
+                    <img
+                        id="registeredImage"
+                        src=""
+                        class="hidden w-full aspect-square rounded-2xl object-cover border-4 border-green-500 shadow-lg">
+                    <div
+                        id="registeredPlaceholder"
+                        class="w-full aspect-square rounded-2xl border-2 border-dashed border-slate-500 flex items-center justify-center text-slate-400 text-center text-sm p-2">
+                        No Match Yet
+                    </div>
+                </div>
+
+                <!-- SCANNED PHOTO -->
+                <div class="flex flex-col items-center">
+                    <span class="text-slate-400 text-sm mb-2">Scanned</span>
+                    <img
+                        id="scannedImage"
+                        src=""
+                        class="hidden w-full aspect-square rounded-2xl object-cover border-4 border-blue-500 shadow-lg">
+                    <div
+                        id="scannedPlaceholder"
+                        class="w-full aspect-square rounded-2xl border-2 border-dashed border-slate-500 flex items-center justify-center text-slate-400 text-center text-sm p-2">
+                        No Scan Yet
+                    </div>
+                </div>
+
+            </div>
+
+            <h2
+                id="personName"
+                class="mt-6 text-3xl font-bold text-white">
+                Waiting...
+            </h2>
+
+            <p
+                id="matchPercent"
+                class="mt-2 text-green-400 text-2xl">
+                0%
+            </p>
+
+            <div
+                id="status"
+                class="mt-4 text-slate-300">
+                Ready to scan
+            </div>
+
+            <!-- NEW: big, unmistakable Access Denied banner for QR/face
+                 mismatches. Separate from employeeDetails so it can never
+                 be confused with a successful check-in. -->
+            <div id="accessDeniedBanner" class="hidden mt-6 w-full bg-red-900/40 border-2 border-red-500 rounded-2xl p-5 text-center">
+                <p class="text-red-300 font-extrabold text-xl">⛔ ACCESS DENIED</p>
+                <p id="accessDeniedText" class="text-red-200 text-sm mt-2"></p>
+            </div>
+
+            <!-- EMPLOYEE DETAILS + QR CODE (shown only on a confirmed match) -->
+            <div id="employeeDetails" class="hidden mt-6 w-full bg-slate-700/50 border border-slate-600 rounded-2xl p-5 flex gap-5 items-center">
+
+                <img id="employeeQr" src="" class="w-24 h-24 bg-white p-1 rounded-lg flex-shrink-0">
+
+                <div class="text-left text-sm text-slate-200 space-y-1 flex-1">
+                    <p><span class="text-slate-400">Employee ID:</span> <span id="employeeId"></span></p>
+                    <p><span class="text-slate-400">Contact:</span> <span id="employeeContact"></span></p>
+                    <p><span class="text-slate-400">Address:</span> <span id="employeeAddress"></span></p>
+                    <p><span class="text-slate-400">Date Hired:</span> <span id="employeeDateHired"></span></p>
+                </div>
+
+            </div>
+
+            <!-- NEW: result banner shown after Time In / Time Out is confirmed -->
+            <div id="attendanceResult" class="hidden mt-4 w-full rounded-2xl p-4 text-center border-2"></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<canvas id="canvas" class="hidden"></canvas>
+
+<!-- NEW: Time In / Time Out confirmation popup, shown right after a
+     successful (non-denied) face verification. Nothing gets logged to
+     attendance until the user picks one of these two buttons. -->
+<div id="attendanceModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+        <p class="text-slate-400 text-sm">Face verified as</p>
+        <h3 id="attendanceModalName" class="text-2xl font-bold text-white mt-1 mb-5">—</h3>
+        <p class="text-slate-300 text-sm mb-4">Is this employee timing in or timing out?</p>
+        <div class="grid grid-cols-2 gap-3">
+            <button id="btnTimeIn"
+                class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition">
+                ⏱ Time In
+            </button>
+            <button id="btnTimeOut"
+                class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition">
+                🚪 Time Out
+            </button>
+        </div>
+        <button id="btnCancelAttendance"
+            class="mt-4 text-slate-400 hover:text-slate-200 text-sm underline">
+            Cancel
+        </button>
+    </div>
+</div>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+// NEW: read employee_id from the URL (?employee_id=xxx). The parent
+// dashboard sets this on the iframe src right after a successful QR scan
+// (see dashboard.html -> onQrScanSuccess). This is what lets the backend
+// know WHICH employee's badge is being verified, so it can catch a
+// mismatch (someone else's face on someone else's QR).
+const urlParams = new URLSearchParams(window.location.search);
+const expectedEmployeeId = urlParams.get("employee_id");
+
+// NEW: holds the verified-but-not-yet-logged face match while the user
+// picks Time In or Time Out on the popup.
+let pendingAttendance = null;
+
+function showAttendanceResult(scanType, verifiedAt) {
+    const banner = document.getElementById("attendanceResult");
+    const isIn = scanType === "time_in";
+    banner.className = "mt-4 w-full rounded-2xl p-4 text-center border-2 " +
+        (isIn
+            ? "bg-emerald-900/30 border-emerald-500 text-emerald-200"
+            : "bg-amber-900/30 border-amber-500 text-amber-200");
+    banner.innerText = (isIn ? "✅ TIME IN recorded" : "🚪 TIME OUT recorded") +
+        (verifiedAt ? ` — ${verifiedAt}` : "");
+    banner.classList.remove("hidden");
+}
+
+async function confirmAttendance(scanType) {
+    if (!pendingAttendance) return;
+
+    document.getElementById("attendanceModal").classList.add("hidden");
+    document.getElementById("status").innerText = "Saving attendance...";
+
+    try {
+        const response = await fetch("/deepfacerecog/log-attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                employee_id: pendingAttendance.employee_id,
+                name: pendingAttendance.name,
+                score: pendingAttendance.score,
+                scanned_image: pendingAttendance.scanned_image,
+                registered_image: pendingAttendance.registered_image,
+                scan_type: scanType
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            document.getElementById("status").innerText = "Could not save attendance.";
+            console.error(data.error);
+            pendingAttendance = null;
+            return;
+        }
+
+        showAttendanceResult(scanType, data.verified_at);
+        document.getElementById("status").innerText = "Scan Complete";
+
+        const message = (scanType === "time_in" ? "Time In" : "Time Out") +
+            ` recorded at ${data.verified_at || ""}`.trim();
+
+        // Report the confirmed result to the parent dashboard via
+        // postMessage - this is the same bridge pattern dashboard.html
+        // already listens for, and it avoids any cross-origin issues
+        // that a direct window.parent.fn() call could run into.
+        window.parent.postMessage({
+            type: "face-scan-success",
+            employeeId: data.employee_id,
+            employeeName: data.name,
+            message
+        }, "*");
+
+    } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "Could not save attendance.";
+    } finally {
+        pendingAttendance = null;
+    }
+}
+
+function cancelAttendance() {
+    document.getElementById("attendanceModal").classList.add("hidden");
+    document.getElementById("status").innerText = "Attendance not recorded. Scan again if needed.";
+    pendingAttendance = null;
+}
+
+if (expectedEmployeeId) {
+    document.getElementById("expectedBadge").classList.remove("hidden");
+    document.getElementById("expectedBadgeId").innerText = expectedEmployeeId;
+}
+
+document.getElementById("btnTimeIn").addEventListener("click", () => confirmAttendance("time_in"));
+document.getElementById("btnTimeOut").addEventListener("click", () => confirmAttendance("time_out"));
+document.getElementById("btnCancelAttendance").addEventListener("click", cancelAttendance);
+
+navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => {
+        video.srcObject = stream;
+    })
+    .catch(error => {
+        alert("Camera access denied.");
+        console.error(error);
+    });
+
+function captureImage() {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+// Captures a BASELINE frame immediately (neutral expression), then shows a
+// visible countdown while the user gets ready to smile, then captures an
+// ACTION frame right when the countdown hits "Ngumiti!". A photo/phone
+// held up cannot change expression on cue like a real person can.
+const COUNTDOWN_SECONDS = 3;
+
+function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function scanFace() {
+
+    const blinkOverlay = document.getElementById("blinkOverlay");
+    const blinkOverlayText = document.getElementById("blinkOverlayText");
+
+    // Step 1: capture baseline frame right away (neutral expression)
+    document.getElementById("status").innerText = "Kumuha ng baseline...";
+    blinkOverlay.classList.remove("hidden");
+    blinkOverlayText.innerText = "Tingin sa camera at magsmile for livenessmotion";
+    const baselineImage = captureImage();
+    await wait(600); // brief pause so baseline capture feels intentional, not instant
+
+    // Step 2: visible countdown so the user has time to get ready to smile
+    for (let i = COUNTDOWN_SECONDS; i >= 1; i--) {
+        blinkOverlayText.innerText = `Smile  ${i}`;
+        document.getElementById("status").innerText = `Humanda ngumiti sa... ${i}`;
+        await wait(1000);
+    }
+
+    // Step 3: the actual cue moment - capture right as we say "Ngumiti!"
+    blinkOverlayText.innerText = "Smile ";
+    document.getElementById("status").innerText = "smile";
+    await wait(400); // tiny buffer so the smile has started forming
+    const actionImage = captureImage();
+
+    blinkOverlay.classList.add("hidden");
+
+
+    const registeredImg = document.getElementById("registeredImage");
+    const registeredPlaceholder = document.getElementById("registeredPlaceholder");
+    const scannedImg = document.getElementById("scannedImage");
+    const scannedPlaceholder = document.getElementById("scannedPlaceholder");
+    const employeeDetails = document.getElementById("employeeDetails");
+    const accessDeniedBanner = document.getElementById("accessDeniedBanner");
+    const accessDeniedText = document.getElementById("accessDeniedText");
+
+    // reset banners from any previous scan attempt
+    accessDeniedBanner.classList.add("hidden");
+    employeeDetails.classList.add("hidden");
+
+    try {
+
+        const response = await fetch("/deepfacerecog/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                baseline: baselineImage,
+                action: actionImage,
+                // NEW: tells the backend which employee's QR was scanned,
+                // so it can flag a mismatch instead of silently accepting
+                // whoever's face shows up.
+                expected_employee_id: expectedEmployeeId || null
+            })
+        });
+
+        const data = await response.json();
+
+        document.getElementById("status").innerText = "Scan Complete";
+
+        // Scanned photo always shows if we have it
+        // NOTE: data.scanned_image is a base64 data: URI, NOT a normal URL.
+        // Do NOT append "?t=..." to it (that's only valid for real URLs) -
+        // doing so corrupts the base64 string and breaks the image.
+        if (data.scanned_image) {
+            scannedImg.src = data.scanned_image;
+            scannedImg.classList.remove("hidden");
+            scannedPlaceholder.classList.add("hidden");
+        } else {
+            scannedImg.classList.add("hidden");
+            scannedPlaceholder.classList.remove("hidden");
+        }
+
+        // -------------------------------
+        // NEW: ACCESS DENIED PATH (QR/Face mismatch)
+        // -------------------------------
+        if (data.access_denied) {
+
+            document.getElementById("personName").innerText = "Access Denied";
+            document.getElementById("matchPercent").innerText = "";
+
+            accessDeniedText.innerText = data.employee_lookup_note ||
+                "This QR code does not belong to the person scanned.";
+            accessDeniedBanner.classList.remove("hidden");
+
+            // Show the REAL registered employee's photo/details for
+            // transparency (so staff can see who actually got scanned),
+            // but this is clearly separated from the denied banner above
+            // and never implies attendance was recorded.
+            if (data.registered_image) {
+                registeredImg.src = data.registered_image;
+                registeredImg.classList.remove("hidden");
+                registeredPlaceholder.classList.add("hidden");
+            }
+
+            // Tell the parent dashboard this attempt FAILED - do not treat
+            // it as a successful check-in. postMessage only (see note
+            // above on why direct window.parent.fn() calls are risky).
+            window.parent.postMessage({
+                type: "face-scan-error",
+                message: data.employee_lookup_note || "QR/Face mismatch - access denied.",
+                employeeId: expectedEmployeeId,
+                employeeName: data.match
+            }, "*");
+
+            return;
+        }
+
+        // -------------------------------
+        // NORMAL PATH (no QR expected, or QR matched the face)
+        // -------------------------------
+        document.getElementById("personName").innerText = data.match;
+
+        const matchPercentEl = document.getElementById("matchPercent");
+        if (data.match === "Unknown" || data.score === 0) {
+            matchPercentEl.innerText = "";
+        } else {
+            matchPercentEl.innerText = data.score + "% Match";
+        }
+
+        // Registered photo only shows on an actual match
+        if (data.registered_image && data.match !== "Unknown") {
+            registeredImg.src = data.registered_image;
+            registeredImg.classList.remove("hidden");
+            registeredPlaceholder.classList.add("hidden");
+        } else {
+            registeredImg.classList.add("hidden");
+            registeredPlaceholder.classList.remove("hidden");
+            registeredPlaceholder.innerText = "No Match Yet";
+        }
+
+        // Employee ID / contact / address / date hired / QR code -
+        // only shown when we actually found a matching employee record
+        if (data.employee_id) {
+            document.getElementById("employeeId").innerText = data.employee_id;
+            document.getElementById("employeeContact").innerText = data.contact || "-";
+            document.getElementById("employeeAddress").innerText = data.address || "-";
+            document.getElementById("employeeDateHired").innerText = data.date_hired || "-";
+
+            if (data.qr_code_image) {
+                document.getElementById("employeeQr").src = data.qr_code_image;
+            }
+
+            employeeDetails.classList.remove("hidden");
+
+            // NEW: face is verified, but we DON'T report success to the
+            // parent dashboard yet. First, ask whether this is a Time In
+            // or Time Out via the popup - only that choice actually logs
+            // attendance (via /log-attendance).
+            pendingAttendance = {
+                employee_id: data.employee_id,
+                name: data.match,
+                score: data.score,
+                scanned_image: data.scanned_image,
+                registered_image: data.registered_image
+            };
+            document.getElementById("attendanceModalName").innerText = data.match;
+            document.getElementById("attendanceResult").classList.add("hidden");
+            document.getElementById("attendanceModal").classList.remove("hidden");
+
+        } else if (data.employee_lookup_note) {
+            // Face matched, but no employee record for that name -
+            // surface this instead of silently showing nothing.
+            console.warn(data.employee_lookup_note);
+            employeeDetails.classList.remove("hidden");
+            employeeDetails.innerHTML = `<p class="text-yellow-300 text-sm">${data.employee_lookup_note}</p>`;
+
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: "face-scan-error",
+                    message: data.employee_lookup_note,
+                    employeeId: expectedEmployeeId,
+                    employeeName: data.match
+                }, "*");
+            }
+        } else {
+            employeeDetails.classList.add("hidden");
+        }
+
+    } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "Scan Failed";
+    }
+}
+
+</script>
+
+</body>
+</html>

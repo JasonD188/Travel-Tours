@@ -1,0 +1,22 @@
+
+
+
+#halimbawa para sa database
+services:
+  face-attendance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: face-attendance-app:latest
+    container_name: face-attendance-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env      
+    volumes:
+     
+      - qrcodes_data:/app/qrcodes
+
+volumes:
+  qrcodes_data:
