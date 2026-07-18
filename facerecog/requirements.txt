@@ -9,3 +9,4 @@ pymongo
 dnspython
 qrcode
 gunicorn
+face_recognition    
