@@ -1287,8 +1287,13 @@ function renderScanResults() {
           <span class="text-[10px] font-bold text-white ${badgeCls} px-2 py-0.5 rounded-full">${badge}</span>
           <span class="text-[10px] text-slate-400">${r.time}</span>
         </div>
-        <p class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">${r.name || 'Unknown'}</p>
-        <p class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">${r.qrId || '—'}</p>
+        <div class="mt-1 flex items-center gap-2">
+          ${r.photo ? `<img src="${r.photo}" class="w-10 h-10 rounded-lg object-cover shrink-0" alt="${r.name || 'Unknown'}">` : ''}
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">${r.name || 'Unknown'}</p>
+            <p class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">${r.qrId || '—'}</p>
+          </div>
+        </div>
         ${r.message ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">${r.message}</p>` : ''}
       </li>`;
   }).join('');
@@ -1314,7 +1319,7 @@ function resetScannerFlow() {
   renderScanResults();
 }
 
-function onQrScanSuccess(employeeId, employeeName) {
+function onQrScanSuccess(employeeId, employeeName, photo) {
   // Hide QR stage entirely, reveal Face stage, log result in sidebar.
   const qrStep = document.getElementById('qr-scanner-step');
   const faceStep = document.getElementById('face-scanner-step');
@@ -1370,11 +1375,10 @@ function onFaceScanError(message, employeeId, employeeName) {
 window.addEventListener('message', (event) => {
   const d = event.data;
   if (!d || typeof d !== 'object') return;
-  if (d.type === 'qr-scan-success') onQrScanSuccess(d.employeeId, d.employeeName);
+  if (d.type === 'qr-scan-success') onQrScanSuccess(d.employeeId, d.employeeName, d.photo);
   else if (d.type === 'face-scan-success') onFaceScanSuccess(d.employeeId, d.employeeName, d);
   else if (d.type === 'face-scan-error') onFaceScanError(d.message, d.employeeId, d.employeeName);
 });
-
 window.onQrScanSuccess = onQrScanSuccess;
 window.onFaceScanSuccess = onFaceScanSuccess;
 window.onFaceScanError = onFaceScanError;

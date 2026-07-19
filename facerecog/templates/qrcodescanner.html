@@ -180,7 +180,7 @@ function onScanSuccess(decodedText, decodedResult){
         // sabihin sa parent dashboard (dashboard.html) na verified na
         // ang QR, para mag-switch ito papuntang Face Recognition step.
         if (window.parent && window.parent !== window && window.parent.onQrScanSuccess) {
-            window.parent.onQrScanSuccess(data.employee_id, data.name);
+            window.parent.onQrScanSuccess(data.employee_id, data.name, data.photo);
         }
 
     } else {
