@@ -255,6 +255,21 @@ function cancelAttendance() {
 if (expectedEmployeeId) {
     document.getElementById("expectedBadge").classList.remove("hidden");
     document.getElementById("expectedBadgeId").innerText = expectedEmployeeId;
+
+    // NEW: agad ipakita ang totoong larawan ng may-ari ng QR badge na ito,
+    // direkta mula sa GridFS via qrcodescanner's employee lookup endpoint -
+    // hiwalay sa face-matching result, para laging tama ang ipinapakita dito
+    // kahit anong mangyari sa matching logic.
+    fetch(`/qrcodescanner/employee/${encodeURIComponent(expectedEmployeeId)}`)
+        .then(res => res.json())
+        .then(info => {
+            if (info.success && info.photo) {
+                document.getElementById("registeredImage").src = info.photo;
+                document.getElementById("registeredImage").classList.remove("hidden");
+                document.getElementById("registeredPlaceholder").classList.add("hidden");
+            }
+        })
+        .catch(err => console.error("Could not load QR owner's photo:", err));
 }
 
 document.getElementById("btnTimeIn").addEventListener("click", () => confirmAttendance("time_in"));
