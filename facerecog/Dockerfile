@@ -32,7 +32,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RRUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas0 \
     liblapack3 \
     libgomp1 \
@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxext6 \
     libxrender1 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /wheels /wheels
