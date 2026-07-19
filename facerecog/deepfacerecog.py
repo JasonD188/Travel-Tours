@@ -46,7 +46,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 QR_DIR = os.path.join(BASE_DIR, "qrcodes")
 
 
-TOLERANCE = 0.40
+# --- Match / access threshold -------------------------------------------------
+# Score = (1 - face_distance) * 100. A face must score at least
+# MIN_ACCESS_SCORE_PERCENT to be considered "verified" / access granted.
+# Tune this between 60-65 as needed; TOLERANCE (the underlying distance
+# cutoff used by face_recognition) is derived from it automatically.
+MIN_ACCESS_SCORE_PERCENT = 65
+TOLERANCE = 1 - (MIN_ACCESS_SCORE_PERCENT / 100)  # 0.35 at 65%
 MIN_MARGIN = 0.07
 
 REGISTER_NUM_JITTERS = 10
@@ -374,8 +380,11 @@ def scan():
         mismatch_identified_employee_id = None
 
         if expected_employee_id:
-         
-         
+            # --- QR-based scan -------------------------------------------------
+            # The identity shown to the user is ALWAYS the QR code's owner
+            # (looked up from MongoDB), regardless of whether the live face
+            # actually matches. Whether access is granted or denied is
+            # decided purely by the match score vs MIN_ACCESS_SCORE_PERCENT.
             own_idxs = [
                 i for i, eid in enumerate(known_face_employee_ids)
                 if eid == expected_employee_id
@@ -390,70 +399,53 @@ def scan():
                     )
                 )
 
+            qr_owner_employees = load_employees()
+            qr_owner_info = qr_owner_employees.get(expected_employee_id)
+            qr_owner_name = (
+                qr_owner_info.get("name") if qr_owner_info
+                else (known_face_names[own_idxs[0]] if own_idxs else expected_employee_id)
+            )
+
+            name = qr_owner_name
+            matched_employee_id = expected_employee_id
+            matched_key = expected_employee_id
+            score = round(max(0, (1 - own_distance)) * 100, 2) if own_distance is not None else 0
+
             if own_distance is not None and own_distance <= TOLERANCE:
-        
-                idx = own_idxs[0]
-                name = known_face_names[idx]
-                matched_employee_id = expected_employee_id
-                matched_key = expected_employee_id
-                score = round(max(0, (1 - own_distance)) * 100, 2)
+                qr_mismatch = False
                 print(f"QR-matched employee verified: {name} "
-                      f"(distance={own_distance:.4f})")
+                      f"(distance={own_distance:.4f}, score={score}%)")
             else:
-              
                 qr_mismatch = True
 
                 best_key, (best_distance, best_name, best_eid) = ranked[0]
                 is_confident_other = best_distance <= TOLERANCE
+                belongs_to_someone_else = is_confident_other and (best_eid or best_key) != expected_employee_id
 
-                if is_confident_other:
-                  
+                if belongs_to_someone_else:
                     mismatch_identified_key = best_key
                     mismatch_identified_name = best_name
                     mismatch_identified_employee_id = best_eid
-
-                    if best_eid and best_eid != expected_employee_id:
-                        employee_lookup_note = (
-                            f"Access denied: this QR code does not belong to "
-                            f"the person scanned. The face belongs to "
-                            f"registered employee '{best_name}' "
-                            f"(Employee ID: {best_eid}), not the employee "
-                            f"linked to the scanned QR code. Attendance was "
-                            f"NOT recorded."
-                        )
-                    else:
-                        employee_lookup_note = (
-                            f"Access denied: this QR code does not belong to "
-                            f"the person scanned. The face matches registered "
-                            f"person '{best_name}', but no employee_id is "
-                            f"linked to their registration - check their "
-                            f"GridFS metadata. Attendance was NOT recorded."
-                        )
-                elif not own_idxs:
                     employee_lookup_note = (
-                        f"Access denied: QR code refers to employee_id "
-                        f"'{expected_employee_id}', which has no registered "
-                        f"face on file. The scanned face also does not "
-                        f"confidently match any other registered person "
-                        f"(closest: {best_name}, distance={best_distance:.4f}). "
-                        f"Attendance was NOT recorded."
+                        f"Access denied: match score ({score}%) is below the "
+                        f"required {MIN_ACCESS_SCORE_PERCENT}% threshold for "
+                        f"'{name}' (Employee ID: {expected_employee_id}). The "
+                        f"scanned face actually belongs to registered employee "
+                        f"'{best_name}' (Employee ID: {best_eid}). Attendance "
+                        f"was NOT recorded."
                     )
                 else:
                     employee_lookup_note = (
-                        f"Access denied: the scanned face does not match "
-                        f"the employee linked to this QR code "
-                        f"(distance={own_distance:.4f}, tolerance={TOLERANCE}), "
-                        f"and does not confidently match any other "
-                        f"registered person either (closest: {best_name}, "
-                        f"distance={best_distance:.4f}). Attendance was "
-                        f"NOT recorded."
+                        f"Access denied: match score ({score}%) for "
+                        f"'{name}' (Employee ID: {expected_employee_id}) is "
+                        f"below the required {MIN_ACCESS_SCORE_PERCENT}% "
+                        f"threshold. Attendance was NOT recorded."
                     )
 
-                print(f"QR MISMATCH (attendance blocked): "
-                      f"expected={expected_employee_id} "
+                print(f"QR MISMATCH (attendance blocked): expected={expected_employee_id} "
+                      f"name={name} score={score}% "
                       f"own_distance={'-' if own_distance is None else round(own_distance, 4)} "
                       f"closest_overall={best_name} ({best_distance:.4f})")
-                name = "Unknown"
         else:
         
         
@@ -497,7 +489,28 @@ def scan():
         qr_code_image = None
         verified_at = None
 
-        if name != "Unknown" and not qr_mismatch:
+        if expected_employee_id:
+            # QR-based scan: identity is always the QR owner's record.
+            # If access was denied, only expose employee_id / name / date_hired
+            # (no contact/address/QR image).
+            employees = load_employees()
+            employee_info = employees.get(expected_employee_id)
+
+            if employee_info:
+                employee_id = expected_employee_id
+                date_hired = employee_info.get("date_hired")
+
+                if not qr_mismatch:
+                    contact = employee_info.get("contact")
+                    address = employee_info.get("address")
+                    qr_code_image = get_qr_code_data_url(employee_id)
+            else:
+                employee_lookup_note = employee_lookup_note or (
+                    f"QR code refers to employee_id '{expected_employee_id}', "
+                    f"which has no matching record in MongoDB."
+                )
+
+        elif name != "Unknown" and not qr_mismatch:
             employees = load_employees()
             employee_info = None
 
