@@ -1,10 +1,12 @@
 from flask import Flask, render_template
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from qrscanner import qrcodescanner_bp
 from deepfacerecog import deepfacerecog_bp
 from registerface import registerface_bp
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 app.register_blueprint(qrcodescanner_bp, url_prefix="/qrcodescanner")
 app.register_blueprint(deepfacerecog_bp, url_prefix="/deepfacerecog")
