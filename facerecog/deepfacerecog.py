@@ -224,23 +224,14 @@ for grid_file in fs.find():
             print(f"Skipped GridFS file {grid_file.filename} (could not decode image)")
             continue
 
-        rgb_image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
-        encodings = face_recognition.face_encodings(
-            rgb_image,
-            num_jitters=REGISTER_NUM_JITTERS,
-            model=ENCODING_MODEL
-        )
-
-        if len(encodings) != 1:
-            print(f"Skipped GridFS file {grid_file.filename} (faces found: {len(encodings)})")
-            continue
-
-     
+        # Resolve employee_id / name from GridFS metadata or filename
+        # FIRST, before touching face encoding. This lets us always store
+        # the registered photo (known_face_images) below, even if face
+        # detection later fails on this photo - so the QR owner's picture
+        # still displays in the UI even when their encoding is unusable.
         employee_id_from_file = getattr(grid_file, "employee_id", None)
         person_name = getattr(grid_file, "name", None)
 
-      
         if not person_name:
             base_name = os.path.splitext(grid_file.filename or "")[0]
             parts = base_name.split("_", 1)
@@ -250,15 +241,32 @@ for grid_file in fs.find():
             else:
                 person_name = base_name or "Unknown"
 
-        known_face_encodings.append(encodings[0])
-        known_face_names.append(person_name)
-        known_face_employee_ids.append(employee_id_from_file)
-
+        # Always store the photo, keyed by employee_id (or name as
+        # fallback) - independent of whether encoding succeeds below.
         image_key = employee_id_from_file or person_name
         if image_key not in known_face_images:
             known_face_images[image_key] = (
                 "data:image/jpeg;base64," + base64.b64encode(file_bytes).decode("utf-8")
             )
+
+        rgb_image = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+        encodings = face_recognition.face_encodings(
+            rgb_image,
+            num_jitters=REGISTER_NUM_JITTERS,
+            model=ENCODING_MODEL
+        )
+
+        if len(encodings) != 1:
+            print(f"No usable face encoding for GridFS file {grid_file.filename} "
+                  f"(faces found: {len(encodings)}) - photo will still display, "
+                  f"but this person cannot be face-matched until re-registered "
+                  f"with a clearer photo.")
+            continue
+
+        known_face_encodings.append(encodings[0])
+        known_face_names.append(person_name)
+        known_face_employee_ids.append(employee_id_from_file)
 
     except Exception as e:
         print(f"Error loading GridFS file {grid_file.filename}: {e}")
