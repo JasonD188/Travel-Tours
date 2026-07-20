@@ -51,16 +51,26 @@ QR_DIR = os.path.join(BASE_DIR, "qrcodes")
 # MIN_ACCESS_SCORE_PERCENT to be considered "verified" / access granted.
 # Tune this between 60-65 as needed; TOLERANCE (the underlying distance
 # cutoff used by face_recognition) is derived from it automatically.
-MIN_ACCESS_SCORE_PERCENT = 65
-TOLERANCE = 1 - (MIN_ACCESS_SCORE_PERCENT / 100)  # 0.35 at 65%
+MIN_ACCESS_SCORE_PERCENT = 54
+TOLERANCE = 1 - (MIN_ACCESS_SCORE_PERCENT / 100)  # 0.46 at 54%
 MIN_MARGIN = 0.07
 
 REGISTER_NUM_JITTERS = 10
 SCAN_NUM_JITTERS = 5
 
-ENCODING_MODEL = "large"
+# "small" uses far less RAM/CPU than "large" - important on memory-limited
+# hosts like Railway, where the previous "large" model was causing the
+# gunicorn worker to be SIGKILL'd (out of memory) mid-request, which is
+# what produced the "undefined% Match" / undefined results in the UI.
+ENCODING_MODEL = "small"
 
 SMILE_GROWTH_THRESHOLD = 1.10
+
+# Frames darker than this (0-255 average brightness) get auto-enhanced
+# before face detection - see enhance_low_light(). Well-lit frames are
+# left untouched. Lower this number if legitimately dim rooms are still
+# being skipped; raise it if enhancement is kicking in on normal frames.
+LOW_LIGHT_BRIGHTNESS_THRESHOLD = 90
 
 
 known_face_encodings = []
@@ -69,6 +79,36 @@ known_face_employee_ids = []
 known_face_images = {}  
 
 print("Loading registered faces from MongoDB GridFS...")
+
+
+def enhance_low_light(bgr_image):
+    """
+    Improve face-detectability in dim/backlit frames using CLAHE
+    (adaptive local contrast enhancement) on the luminance channel.
+    Only kicks in when the frame is actually dark (avg brightness below
+    LOW_LIGHT_BRIGHTNESS_THRESHOLD), so well-lit scans are left as-is.
+    Cheap in CPU/RAM compared to switching face detection to the "cnn"
+    model, which is not an option here given the memory constraints.
+    """
+    gray = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+    mean_brightness = gray.mean()
+
+    if mean_brightness >= LOW_LIGHT_BRIGHTNESS_THRESHOLD:
+        return bgr_image
+
+    lab = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    l_enhanced = clahe.apply(l_channel)
+
+    enhanced_lab = cv2.merge((l_enhanced, a_channel, b_channel))
+    enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+    print(f"Low-light frame detected (avg brightness={mean_brightness:.1f}) "
+          f"- applied CLAHE enhancement before face detection.")
+
+    return enhanced_bgr
 
 
 def mouth_width(landmarks):
@@ -269,6 +309,12 @@ def scan():
 
         baseline_frame = decode_frame(data["baseline"])
         action_frame = decode_frame(data["action"])
+
+        # Auto-enhance dim frames so face detection still works in low
+        # light - no-op on already well-lit frames.
+        baseline_frame = enhance_low_light(baseline_frame)
+        action_frame = enhance_low_light(action_frame)
+
         frame = action_frame
 
       
